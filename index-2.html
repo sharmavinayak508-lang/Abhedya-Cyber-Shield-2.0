@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CyberShield - Prototype</title>
+<style>
+:root{--bg:#f3f5f9;--pn:#fff;--tx:#14171f;--mu:#667085;--ln:#dde2ec;--cy:#0077b6;--li:#1a9e3f;--rd:#d6003f;--or:#c76a00;--er:#d6336c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#020204;--pn:#07080e;--tx:#e0e6ed;--mu:#7a8596;--ln:#1a2030;--cy:#00f0ff;--li:#39ff14;--rd:#ff0055;--or:#ffa500;--er:#ff6688}}
+:root[data-theme="dark"]{--bg:#020204;--pn:#07080e;--tx:#e0e6ed;--mu:#7a8596;--ln:#1a2030;--cy:#00f0ff;--li:#39ff14;--rd:#ff0055;--or:#ffa500;--er:#ff6688}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:ui-monospace,Consolas,Menlo,"Courier New",monospace;font-size:13px;line-height:1.45}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;background:var(--pn);border-bottom:1px solid var(--ln)}
+header b{color:var(--cy);letter-spacing:.14em;font-size:15px}
+.pill{font-size:10px;color:var(--or);border:1px solid var(--or);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.wrap{max-width:940px;margin:0 auto;padding:12px 12px 90px}
+.g{display:grid;gap:12px;grid-template-columns:1fr;margin-bottom:12px}
+@media(min-width:720px){.g{grid-template-columns:1fr 1fr}}
+.card{background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px}
+.g .card{margin-bottom:0}
+.t{margin:0 0 10px;font-size:11px;letter-spacing:.12em;color:var(--mu);text-transform:uppercase;font-weight:700;display:flex;justify-content:space-between;gap:8px}
+.lg{text-transform:none;letter-spacing:0}
+.gauge{width:100%;max-width:300px;display:block;margin:0 auto}
+.gauge .bg,.gauge .fg{fill:none;stroke-width:14;stroke-linecap:round}
+.gauge .bg{stroke:var(--ln)}
+.gauge .fg{transition:stroke-dashoffset .5s,stroke .5s}
+canvas{width:100%;height:150px;display:block}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.row span:first-child{width:62px;color:var(--mu);font-size:11px}
+.trk{flex:1;height:10px;background:var(--ln);border-radius:5px;overflow:hidden}
+.trk i{display:block;height:100%;border-radius:5px;transition:width .4s}
+.feed{max-height:210px;overflow:auto;font-size:11.5px}
+.ln{padding:3px 0;border-bottom:1px dashed var(--ln);word-break:break-word}
+.ln em{font-style:normal;color:var(--mu)}
+.s-INFO{color:var(--li)}.s-WARN{color:var(--or)}.s-ERROR{color:var(--er)}.s-CRITICAL{color:var(--rd)}
+.b{background:transparent;color:var(--cy);border:1px solid var(--cy);border-radius:8px;padding:9px 12px;font:inherit;font-weight:700;cursor:pointer;margin:3px 4px 3px 0}
+.b.r{color:var(--rd);border-color:var(--rd)}.b.l{color:var(--li);border-color:var(--li)}.b.o{color:var(--or);border-color:var(--or)}
+.b:active{opacity:.6}
+input[type=text],textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:8px;padding:10px;font:inherit}
+textarea{min-height:64px;resize:vertical}
+input[type=range]{width:100%;accent-color:var(--cy)}
+.out{margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--ln);word-break:break-all;font-size:11.5px;min-height:34px}
+.mt{display:flex;gap:4px;margin:10px 0 4px}.mt i{flex:1;height:8px;border-radius:4px;background:var(--ln);transition:background .2s}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--ln);background:var(--pn);color:var(--mu);border-radius:99px;padding:6px 12px;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.chip.on{color:var(--cy);border-color:var(--cy)}
+.fl{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--ln)}
+.bad{color:var(--rd);font-weight:700}
+.note{color:var(--mu);font-size:11px;margin:6px 0 0}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;background:var(--pn);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;border:0;color:var(--mu);padding:9px 0 8px;font:inherit;font-size:10.5px;font-weight:700;cursor:pointer}
+nav button i{display:block;font-style:normal;font-size:18px;line-height:1.2}
+nav button.on{color:var(--cy)}
+</style>
+</head>
+<body>
+<header><b>&#128737; CYBERSHIELD</b><span class="pill">PROTOTYPE &middot; simulated data</span></header>
+<main class="wrap">
+
+<section id="p-ov" class="pg">
+ <div class="g">
+  <div class="card"><h3 class="t">Security score</h3>
+   <svg class="gauge" viewBox="0 0 200 135" role="img" aria-label="Security score gauge">
+    <path class="bg" d="M20 110 A80 80 0 0 1 180 110"/>
+    <path id="arc" class="fg" d="M20 110 A80 80 0 0 1 180 110" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"/>
+    <text id="sc" x="100" y="102" text-anchor="middle" font-size="40" font-weight="700" fill="currentColor"></text>
+    <text id="sl" x="100" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor"></text>
+   </svg></div>
+  <div class="card"><h3 class="t"><span>CPU / RAM live %</span><span class="lg"><b style="color:var(--cy)">&#9632;</b> CPU <b style="color:var(--rd)">&#9632;</b> RAM</span></h3><canvas id="ch"></canvas></div>
+ </div>
+ <div class="g">
+  <div class="card"><h3 class="t">Events by severity</h3><div id="bars"></div></div>
+  <div class="card"><h3 class="t">Live telemetry feed</h3><div id="feed" class="feed"></div></div>
+ </div>
+</section>
+
+<section id="p-pt" class="pg" hidden>
+ <div class="card"><h3 class="t">Honeytoken trap</h3>
+  <div>A decoy credentials file nobody should touch. Any change raises a critical alert.</div>
+  <button class="b r" id="hdep">DEPLOY TRAP</button><button class="b o" id="htam">SIMULATE TAMPERING</button>
+  <div class="out" id="hout">Trap not deployed.</div></div>
+ <div class="card"><h3 class="t">File hash scanner</h3>
+  <div>Hashes text with real SHA-256 in your browser and checks a signature list.</div>
+  <textarea id="smp" placeholder="Paste sample text..."></textarea>
+  <button class="b" id="scan">SCAN SAMPLE</button><button class="b l" id="fill">USE TEST SAMPLE</button>
+  <div class="out" id="sout">Test sample text: CYBERSHIELD-TEST-FILE</div></div>
+ <div class="card"><h3 class="t">Folder integrity monitor</h3>
+  <div id="fls"></div>
+  <button class="b l" id="ibase">CREATE BASELINE</button><button class="b o" id="itam">TAMPER A FILE</button><button class="b r" id="iscan">SCAN FOR CHANGES</button>
+  <div class="out" id="iout">1) Baseline 2) Tamper 3) Scan</div></div>
+</section>
+
+<section id="p-pw" class="pg" hidden>
+ <div class="card"><h3 class="t">Strength checker</h3>
+  <input type="text" id="pin" placeholder="Type a password..." autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="mt" id="mt"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="pl" style="font-weight:700">NO INPUT</div><div class="note" id="pe"></div><div id="pf" class="note"></div></div>
+ <div class="card"><h3 class="t">Secure generator</h3>
+  <div class="row"><span style="width:auto">Length</span><input type="range" id="len" min="12" max="64" value="16"><b id="lv">16</b></div>
+  <button class="b r" id="gen">GENERATE</button><button class="b" id="cp">COPY</button>
+  <div class="out" id="gout">&mdash;</div></div>
+</section>
+
+<section id="p-lg" class="pg" hidden>
+ <div class="card"><h3 class="t">Log history</h3>
+  <div class="chips" id="chips"></div><div id="lgl" class="feed" style="max-height:none"></div></div>
+</section>
+
+<p class="note" style="text-align:center">Design prototype of the CyberShield desktop app. All data on this page is simulated. <a href="https://github.com/sharmavinayak508-lang/Abhedya-Cyber-Shield-2.0" style="color:var(--cy)">View source on GitHub</a></p>
+</main>
+
+<nav id="nav">
+ <button data-p="ov" class="on"><i>&#9678;</i>Overview</button>
+ <button data-p="pt"><i>&#9635;</i>Protect</button>
+ <button data-p="pw"><i>&#9000;</i>Passwords</button>
+ <button data-p="lg"><i>&#8801;</i>Logs</button>
+</nav>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const SEV=['INFO','WARN','ERROR','CRITICAL'],PEN={CRITICAL:15,ERROR:5,WARN:3},COL={INFO:'--li',WARN:'--or',ERROR:'--er',CRITICAL:'--rd'};
+let score=100,logs=[],cnt={INFO:0,WARN:0,ERROR:0,CRITICAL:0},filt='ALL';
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+function log(m,s='INFO'){
+ logs.unshift({t:new Date().toLocaleTimeString([],{hour12:false}),s,m});
+ logs.length=Math.min(logs.length,200);
+ score=Math.max(0,score-(PEN[s]||0));cnt[s]++;render();
+}
+const row=l=>`<div class="ln s-${l.s}"><em>${l.t}</em> [${l.s}] ${l.m}</div>`;
+function render(){
+ const c=score>=80?'--li':score>=50?'--or':'--rd',lb=score>=80?'SECURE':score>=50?'ELEVATED RISK':'CRITICAL';
+ $('#arc').style.stroke=css(c);$('#arc').style.strokeDashoffset=100-score;$('#arc').style.opacity=score?1:0;
+ $('#sc').textContent=score;$('#sc').style.fill=css(c);$('#sl').textContent=lb;$('#sl').style.fill=css(c);
+ const mx=Math.max(1,...SEV.map(k=>cnt[k]));
+ $('#bars').innerHTML=SEV.map(k=>`<div class="row"><span>${k}</span><div class="trk"><i style="width:${cnt[k]/mx*100}%;background:var(${COL[k]})"></i></div><b>${cnt[k]}</b></div>`).join('');
+ $('#feed').innerHTML=logs.slice(0,8).map(row).join('');
+ $('#chips').innerHTML=['ALL',...SEV].map(k=>`<button class="chip${k===filt?' on':''}" data-f="${k}">${k}</button>`).join('');
+ $('#lgl').innerHTML=logs.filter(l=>filt==='ALL'||l.s===filt).map(row).join('')||'<div class="note">No events.</div>';
+}
+$('#chips').onclick=e=>{const f=e.target.dataset.f;if(f){filt=f;render()}};
+
+/* navigation */
+$('#nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+ $$('.pg').forEach(p=>p.hidden=p.id!=='p-'+b.dataset.p);
+ $$('#nav button').forEach(x=>x.classList.toggle('on',x===b));window.scrollTo(0,0);draw()};
+
+/* live chart */
+const cpu=Array(60).fill(20),ram=Array(60).fill(45),cv=$('#ch'),cx=cv.getContext('2d');
+function draw(){
+ const r=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;if(!w)return;
+ cv.width=w*r;cv.height=h*r;cx.setTransform(r,0,0,r,0,0);
+ cx.strokeStyle=css('--ln');cx.lineWidth=1;
+ [0,25,50,75,100].forEach(v=>{const y=h-4-v/100*(h-8);cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y);cx.stroke()});
+ [[cpu,'--cy'],[ram,'--rd']].forEach(([a,c])=>{cx.strokeStyle=css(c);cx.lineWidth=2;cx.beginPath();
+  a.forEach((v,i)=>{const x=i/59*w,y=h-4-v/100*(h-8);i?cx.lineTo(x,y):cx.moveTo(x,y)});cx.stroke()});
+}
+const walk=(v,s,lo,hi)=>Math.min(hi,Math.max(lo,v+(Math.random()-.5)*s));
+let tick=0;
+setInterval(()=>{cpu.push(walk(cpu[59],26,4,96));ram.push(walk(ram[59],3,35,70));cpu.shift();ram.shift();draw();
+ if(++tick%10===0&&score<100){score++;render()}},1000);
+addEventListener('resize',draw);
+
+/* honeytoken */
+let armed=false;
+$('#hdep').onclick=()=>{armed=true;$('#hout').textContent='ARMED. Watching canary_aws_config.json';log('Honeytoken deployed: canary_aws_config.json','WARN')};
+$('#htam').onclick=()=>{if(!armed){$('#hout').textContent='Deploy the trap first.';return}
+ $('#hout').innerHTML='<span class="bad">TRAP TRIPPED: decoy modified!</span>';log('TRAP TRIPPED: decoy canary_aws_config.json was MODIFIED!','CRITICAL')};
+
+/* file hash scanner (real SHA-256) */
+async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+$('#fill').onclick=()=>{$('#smp').value='CYBERSHIELD-TEST-FILE'};
+$('#scan').onclick=async()=>{const v=$('#smp').value;if(!v){$('#sout').textContent='Paste some text first.';return}
+ try{const h=await sha(v),bad=h===await sha('CYBERSHIELD-TEST-FILE');
+  $('#sout').innerHTML='SHA-256: '+h+'<br>'+(bad?'<span class="bad">VERDICT: KNOWN THREAT (CyberShield-Demo-Test-File). Quarantined (simulated).</span>':'VERDICT: no known signature match.');
+  bad?log('Quarantined [CyberShield-Demo-Test-File]: sample.txt','CRITICAL'):log('Clean hash for sample.txt: '+h.slice(0,16)+'...')
+ }catch(e){$('#sout').textContent='SHA-256 needs a secure (https) page.'}};
+
+/* folder integrity (simulated) */
+const files=['config.py','main.py','notes.txt','data.csv'].map(n=>({n,v:0}));let base=null;
+const showFiles=(bad=[])=>$('#fls').innerHTML=files.map(f=>`<div class="fl"><span>${f.n}</span>${bad.includes(f.n)?'<span class="bad">MODIFIED</span>':'<span class="note">ok</span>'}</div>`).join('');
+showFiles();
+$('#ibase').onclick=()=>{base=files.map(f=>f.v);showFiles();$('#iout').textContent='Baseline saved for '+files.length+' files.';log('Integrity baseline created ('+files.length+' files)')};
+$('#itam').onclick=()=>{const f=files[Math.floor(Math.random()*files.length)];f.v++;$('#iout').textContent='An attacker silently changed a file. Now scan.'};
+$('#iscan').onclick=()=>{if(!base){$('#iout').textContent='Create a baseline first.';return}
+ const bad=files.filter((f,i)=>f.v!==base[i]).map(f=>f.n);showFiles(bad);
+ if(bad.length){$('#iout').innerHTML='<span class="bad">INTEGRITY ALERT: '+bad.join(', ')+'</span>';log('INTEGRITY ALERT: '+bad.length+' modified file(s)','CRITICAL')}
+ else{$('#iout').textContent='All files match the baseline.';log('Integrity scan: all files unchanged')}};
+
+/* passwords */
+const COMMON=['password','123456','12345678','qwerty','admin','admin123','letmein','welcome','iloveyou','abc123','password1','111111','123456789'];
+function an(p){if(!p)return{s:0,l:'NO INPUT',c:'--mu',fb:[],e:0};
+ let s=0,fb=[];const lo=/[a-z]/.test(p),up=/[A-Z]/.test(p),di=/\d/.test(p),sy=/[^A-Za-z0-9]/.test(p);
+ if(p.length>=8)s++;else fb.push('Use at least 8 characters');
+ if(p.length>=14)s++;else fb.push('14+ characters is much safer');
+ [[lo,'lowercase letters'],[up,'uppercase letters'],[di,'digits'],[sy,'symbols']].forEach(([k,m])=>k?s++:fb.push('Add '+m));
+ const pool=26*lo+26*up+10*di+32*sy,e=pool?Math.round(p.length*Math.log2(pool)*10)/10:0;
+ if(COMMON.includes(p.toLowerCase())){s=0;fb.unshift('One of the most common passwords')}
+ const l=s<=2?['VERY WEAK','--rd']:s<=4?['WEAK','--or']:s===5?['GOOD','--cy']:['STRONG','--li'];
+ return{s,l:l[0],c:l[1],fb,e}}
+$('#pin').oninput=e=>{const r=an(e.target.value);
+ $$('#mt i').forEach((b,i)=>b.style.background=i<r.s?css(r.c):'');
+ $('#pl').textContent=r.l;$('#pl').style.color=css(r.c);
+ $('#pe').textContent=r.e?'Estimated entropy: '+r.e+' bits':'';
+ $('#pf').innerHTML=r.fb.map(f=>'- '+f).join('<br>')};
+function gen(n){const P=['abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ','0123456789','!@#$%^&*()_+-=[]{};:,.<>?/'],all=P.join('');
+ const rnd=m=>{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%m};
+ const c=P.map(s=>s[rnd(s.length)]);while(c.length<n)c.push(all[rnd(all.length)]);
+ for(let i=c.length-1;i>0;i--){const j=rnd(i+1);[c[i],c[j]]=[c[j],c[i]]}return c.join('')}
+$('#len').oninput=e=>$('#lv').textContent=e.target.value;
+$('#gen').onclick=()=>{$('#gout').textContent=gen(+$('#len').value);log('Generated a secure random password')};
+$('#cp').onclick=async()=>{const v=$('#gout').textContent;if(v.length<12)return;
+ try{await navigator.clipboard.writeText(v);$('#cp').textContent='COPIED'}catch(e){$('#cp').textContent='SELECT & COPY'}
+ setTimeout(()=>$('#cp').textContent='COPY',1500)};
+
+log('Operations environment established.');log("Operator 'admin' signed in.");
+draw();
+</script>
+</body>
+</html>
