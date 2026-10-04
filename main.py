@@ -113,8 +113,8 @@ class CyberShieldApp(tk.Tk):
             else:
                 lbl_msg.config(text=msg)
 
-        tk.Button(box, text="AUTHORIZE ACCESS", bg="#0ea5e9", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_login, bd=0, py=6, cursor="hand2").pack(pady=8)
-        tk.Button(box, text="Register New Account", bg="#334155", fg="white", width=28, command=self.show_register_screen, bd=0, py=5, cursor="hand2").pack()
+        tk.Button(box, text="AUTHORIZE ACCESS", bg="#0ea5e9", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_login, bd=0, pady=6, cursor="hand2").pack(pady=8)
+        tk.Button(box, text="Register New Account", bg="#334155", fg="white", width=28, command=self.show_register_screen, bd=0, pady=5, cursor="hand2").pack()
 
     def show_register_screen(self):
         self.clear_container()
@@ -147,8 +147,8 @@ class CyberShieldApp(tk.Tk):
             if ok:
                 logger.log_event(f"New registration request submitted for '{user}'.", "WARN")
 
-        tk.Button(box, text="SUBMIT REGISTRATION", bg="#10b981", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_register, bd=0, py=6, cursor="hand2").pack(pady=8)
-        tk.Button(box, text="Back to Login", bg="#334155", fg="white", width=28, command=self.show_login_screen, bd=0, py=5, cursor="hand2").pack()
+        tk.Button(box, text="SUBMIT REGISTRATION", bg="#10b981", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_register, bd=0, pady=6, cursor="hand2").pack(pady=8)
+        tk.Button(box, text="Back to Login", bg="#334155", fg="white", width=28, command=self.show_login_screen, bd=0, pady=5, cursor="hand2").pack()
 
     # ================= MAIN DASHBOARD & NAVIGATION =================
     def show_dashboard_screen(self):
@@ -177,7 +177,7 @@ class CyberShieldApp(tk.Tk):
             )
             btn.pack(fill="x")
 
-        tk.Button(self.sidebar, text="LOG OUT", bg="#ef4444", fg="white", bd=0, font=("Helvetica", 10, "bold"), py=8, command=self.show_login_screen, cursor="hand2").pack(side="bottom", fill="x", pady=20)
+        tk.Button(self.sidebar, text="LOG OUT", bg="#ef4444", fg="white", bd=0, font=("Helvetica", 10, "bold"), pady=8, command=self.show_login_screen, cursor="hand2").pack(side="bottom", fill="x", pady=20)
 
         self.load_page("Dashboard")
 
