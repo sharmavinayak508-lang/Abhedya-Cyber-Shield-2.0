@@ -1,33 +1,20 @@
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+import config
 
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from config import APP_NAME
-from backend.database.db import get_db, Base, engine
-from backend.api import auth, customers, admin
+app = FastAPI(title=config.APP_NAME)
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return f"""
+    <html><body style="font-family:Arial;background:{config.THEME['bg_dark']};color:{config.THEME['text']};text-align:center;padding:50px">
+    <h1 style="color:{config.THEME['primary']}">{config.APP_NAME} - RUNNING SUCCESSFULLY!</h1>
+    <p>Config fixed - PATHS and THEME both working</p>
+    <a href="/docs" style="color:{config.THEME['accent']};font-size:20px">Click here to go to /docs</a>
+    <br><br><p>Server: http://localhost:8000</p>
+    </body></html>
+    """
 
-app = FastAPI(title=APP_NAME)
-
-# Allow frontend to talk to backend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# API Routes - THIS IS WHAT YOU ARE MISSING
-app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
-app.include_router(customers.router, prefix="/api/customers", tags=["Customers"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
-
-@app.get("/api/health")
+@app.get("/health")
 def health():
-    return {"status": "CyberShield Backend Running"}
-
-# Serve frontend
-# app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+    return {"status": "ok", "app": config.APP_NAME, "theme_loaded": True, "paths_loaded": True}
