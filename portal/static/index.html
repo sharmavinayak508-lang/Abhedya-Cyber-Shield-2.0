@@ -1,1 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CyberShield Portal</title>
+<style>
+:root{--bg:#eceff3;--surface:#fff;--ink:#16212e;--mute:#5d6b7c;--line:#d8dee6;--navy:#10233b;--acc:#0b7a75;--acc2:#b7791f;--bad:#b42318;--ok:#157f3b;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1520;--surface:#142133;--ink:#e6edf5;--mute:#93a3b8;--line:#25364d;--navy:#08111d;--acc:#3dc2b8;--acc2:#e0a84a;--bad:#ff7b6e;--ok:#4cd07d}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif}
+h1,h2,h3{margin:0;line-height:1.2}
+button,input{font:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.hide{display:none!important}
+.auth{min-height:100vh;display:grid;place-items:center;padding:20px}
+.card{display:grid;grid-template-columns:1fr 1fr;width:min(880px,100%);background:var(--surface);border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.brand{background:var(--navy);color:#e6edf5;padding:40px;display:flex;flex-direction:column;justify-content:space-between;gap:30px}
+.brand h1{font-size:30px;font-weight:600;letter-spacing:-.01em}
+.brand p{color:#9fb2c8;max-width:34ch;margin:12px 0 0}
+.brand ul{margin:0;padding:0;list-style:none;color:#9fb2c8;font-size:14px;display:grid;gap:8px}
+.brand li::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#3dc2b8;margin-right:10px}
+.form{padding:40px}
+.form h2{font-size:22px;margin-bottom:6px}.form .sub{color:var(--mute);margin:0 0 22px}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.btn{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+@media(prefers-color-scheme:dark){.btn{color:#06201e}}
+.btn:disabled{opacity:.6;cursor:wait}
+.link{background:none;border:0;color:var(--acc);cursor:pointer;padding:0;font-weight:600}
+.switch{margin-top:18px;color:var(--mute);font-size:14px}
+.msg{margin-top:16px;padding:12px 14px;border-radius:8px;font-size:14px}
+.msg.bad{background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid var(--bad)}
+.msg.bad b{display:block;font-size:17px;color:var(--bad);margin-bottom:2px}
+.msg.good{background:color-mix(in srgb,var(--ok) 12%,transparent);border:1px solid var(--ok)}
+@media(max-width:760px){.card{grid-template-columns:1fr}.brand{padding:26px}.brand ul{display:none}.form{padding:26px}}
+header.top{background:var(--navy);color:#e6edf5;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header.top b{font-size:17px;font-weight:600}header.top span{color:#9fb2c8;font-size:14px}
+header.top button{background:transparent;color:#e6edf5;border:1px solid #38506c;border-radius:8px;padding:7px 14px;cursor:pointer}
+main{max-width:1080px;margin:0 auto;padding:22px 20px 50px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tab{padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;cursor:pointer}
+.tab[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+.head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.pill{padding:3px 11px;border-radius:999px;font-size:13px;font-weight:600}
+.pill.on{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.off{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.grid{display:grid;grid-template-columns:260px 1fr;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.panel h3{font-size:15px;margin-bottom:14px}
+.score{display:grid;place-items:center;gap:6px;text-align:center}
+.ring{position:relative;width:150px;height:150px}.ring svg{transform:rotate(-90deg)}
+.ring div{position:absolute;inset:0;display:grid;place-items:center;font-size:38px;font-weight:600}
+.meter{margin-bottom:16px}.meter .row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.bar{height:8px;border-radius:6px;background:var(--bg);overflow:hidden}.bar i{display:block;height:100%;background:var(--acc);transition:width .6s}
+.bar i.warn{background:var(--acc2)}.bar i.crit{background:var(--bad)}
+canvas{width:100%;height:190px;display:block}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--mute);margin-top:8px}.legend s{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;text-decoration:none}
+table{width:100%;border-collapse:collapse;font-size:14px}td{padding:8px 0;border-top:1px solid var(--line)}td:last-child{text-align:right;color:var(--mute)}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:14px}dt{color:var(--mute)}dd{margin:0;text-align:right;word-break:break-all}
+.col{display:grid;gap:16px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.grid,.two{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
 
+<section id="auth" class="auth hide"><div class="card">
+ <div class="brand"><div>
+  <svg width="38" height="44" viewBox="0 0 38 44" fill="none" stroke="#3dc2b8" stroke-width="2.5" aria-hidden="true"><path d="M19 3 4 9v12c0 10 6 17 15 20 9-3 15-10 15-20V9z"/><path d="m12 22 5 5 9-10"/></svg>
+  <h1 style="margin-top:22px">CyberShield</h1><p>Sign in to see the live security status of your computer.</p></div>
+  <ul><li>Passwords are stored as salted hashes</li><li>Only verified customers can view status</li><li>You see your own devices only</li></ul></div>
+ <div class="form">
+  <form id="loginForm"><h2>Sign in</h2><p class="sub">Use the account you registered with.</p>
+   <label for="le">Email</label><input id="le" type="email" autocomplete="username" required>
+   <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
+   <button class="btn" id="lb">Sign in</button><div id="lm" role="alert"></div>
+   <p class="switch">New customer? <button type="button" class="link" id="toReg">Create an account</button></p></form>
+  <form id="regForm" class="hide"><h2>Create account</h2><p class="sub">Your account is checked by our team before you get access.</p>
+   <label for="rn">Full name</label><input id="rn" autocomplete="name" required>
+   <label for="re">Email</label><input id="re" type="email" autocomplete="username" required>
+   <label for="rp">Password (8+ characters)</label><input id="rp" type="password" autocomplete="new-password" minlength="8" required>
+   <button class="btn" id="rb">Register</button><div id="rm" role="alert"></div>
+   <p class="switch">Already registered? <button type="button" class="link" id="toLog">Sign in</button></p></form>
+ </div></div></section>
+
+<section id="dash" class="hide">
+ <header class="top"><b>CyberShield</b><span id="who"></span><button id="out">Sign out</button></header>
+ <main><div id="view"></div></main>
+</section>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function api(p,o={}){const r=await fetch(p,{method:o.body?"POST":"GET",headers:{"Content-Type":"application/json"},body:o.body?JSON.stringify(o.body):undefined,credentials:"same-origin"});let d={};try{d=await r.json()}catch{}return{ok:r.ok,status:r.status,d}}
+let timer=null,sel=0,last=null;
+function show(v){$("auth").classList.toggle("hide",v!=="auth");$("dash").classList.toggle("hide",v!=="dash")}
+function bad(el,title,text){el.innerHTML=`<div class="msg bad"><b>${esc(title)}</b>${esc(text)}</div>`}
+$("toReg").onclick=()=>{$("loginForm").classList.add("hide");$("regForm").classList.remove("hide")};
+$("toLog").onclick=()=>{$("regForm").classList.add("hide");$("loginForm").classList.remove("hide")};
+$("loginForm").onsubmit=async e=>{e.preventDefault();const b=$("lb");b.disabled=true;$("lm").innerHTML="";
+ const r=await api("/api/login",{body:{email:$("le").value,password:$("lp").value}});b.disabled=false;
+ if(r.ok){$("lp").value="";enter();return}
+ if(r.d.error==="pending")bad($("lm"),"Not verified","Your account is registered but not approved yet. We'll enable it after verification.");
+ else if(r.status===429)bad($("lm"),"Too many attempts",r.d.message);
+ else bad($("lm"),"Not verified","We couldn't verify these details. Check your email and password.")};
+$("regForm").onsubmit=async e=>{e.preventDefault();const b=$("rb");b.disabled=true;
+ const r=await api("/api/register",{body:{name:$("rn").value,email:$("re").value,password:$("rp").value}});b.disabled=false;
+ if(r.ok)$("rm").innerHTML=`<div class="msg good">Account created. It will show as "Not verified" until our team approves it.</div>`;
+ else bad($("rm"),"Could not register",r.d.message||"Try again.")};
+$("out").onclick=async()=>{await api("/api/logout",{body:{}});clearInterval(timer);show("auth")};
+async function enter(){show("dash");await poll();clearInterval(timer);timer=setInterval(poll,2000)}
+async function poll(){const r=await api("/api/status");if(!r.ok){clearInterval(timer);show("auth");return}last=r.d;$("who").textContent=r.d.name;render()}
+const lvl=v=>v>=90?"crit":v>=75?"warn":"";
+const fmtUp=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return(d?d+"d ":"")+h+"h "+m+"m"};
+const fmtB=n=>n>1e9?(n/1e9).toFixed(2)+" GB":(n/1e6).toFixed(1)+" MB";
+function render(){const v=$("view"),ds=last.devices;
+ if(!ds.length){v.innerHTML=`<div class="panel"><h3>No devices yet</h3><p>Install the CyberShield agent on your computer using the device key we gave you, and it will appear here.</p></div>`;return}
+ if(sel>=ds.length)sel=0;const d=ds[sel],s=d.snap;
+ let h=`<div class="tabs">${ds.map((x,i)=>`<button class="tab" aria-pressed="${i===sel}" data-i="${i}">${esc(x.name)}</button>`).join("")}</div>
+ <div class="head"><h2>${esc(d.name)}</h2><span class="pill ${d.online?"on":"off"}">${d.online?"Online":"Offline"}</span>
+ <span style="color:var(--mute)">${s?(d.online?"Updating live":"Last report "+d.age+"s ago"):"Waiting for the first report from the agent"}</span></div>`;
+ if(s){const C=2*Math.PI*62,col=d.score>=80?"var(--ok)":d.score>=50?"var(--acc2)":"var(--bad)";
+ const m=(n,x)=>`<div class="meter"><div class="row"><span>${n}</span><b>${x.toFixed(0)}%</b></div><div class="bar"><i class="${lvl(x)}" style="width:${x}%"></i></div></div>`;
+ h+=`<div class="grid"><div class="col"><div class="panel score"><h3>Security health</h3><div class="ring"><svg width="150" height="150"><circle cx="75" cy="75" r="62" fill="none" stroke="var(--bg)" stroke-width="12"/><circle cx="75" cy="75" r="62" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C*d.score/100} ${C}"/></svg><div>${d.score}</div></div>
+ <span style="color:var(--mute);font-size:14px">${d.score>=80?"Healthy":d.score>=50?"Needs attention":d.online?"At risk":"Device offline"}</span></div>
+ <div class="panel"><h3>Resources</h3>${m("CPU",s.cpu)}${m("Memory",s.ram)}${m("Disk",s.disk)}</div></div>
+ <div class="col"><div class="panel"><h3>Last 2 minutes</h3><canvas id="ch"></canvas><div class="legend"><span><s style="background:var(--acc)"></s>CPU</span><span><s style="background:var(--acc2)"></s>Memory</span></div></div>
+ <div class="two"><div class="panel"><h3>Top processes by memory</h3><table>${s.top.map(p=>`<tr><td>${esc(p[0])}</td><td>${esc(p[1])}%</td></tr>`).join("")}</table></div>
+ <div class="panel"><h3>System</h3><dl><dt>Computer</dt><dd>${esc(s.host)}</dd><dt>System</dt><dd>${esc(s.os)}</dd><dt>Uptime</dt><dd>${fmtUp(s.uptime)}</dd>${s.desktop_score!=null?`<dt>Desktop scan score</dt><dd>${esc(s.desktop_score)}/100</dd>`:""}<dt>Processes</dt><dd>${esc(s.procs)}</dd><dt>Network sent</dt><dd>${fmtB(s.sent)}</dd><dt>Network received</dt><dd>${fmtB(s.recv)}</dd>${s.battery!=null?`<dt>Battery</dt><dd>${s.battery}%</dd>`:""}</dl></div></div></div></div>`}
+ v.innerHTML=h;v.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{sel=+b.dataset.i;render()});if(s)chart(d.history)}
+function chart(hist){const c=$("ch");if(!c)return;const dpr=devicePixelRatio||1,w=c.clientWidth,H=c.clientHeight;c.width=w*dpr;c.height=H*dpr;const x=c.getContext("2d");x.scale(dpr,dpr);
+ const cs=getComputedStyle(document.documentElement),line=cs.getPropertyValue("--line"),mute=cs.getPropertyValue("--mute");x.font="12px sans-serif";x.lineWidth=1;
+ for(let g=0;g<=4;g++){const y=10+(H-30)*g/4;x.strokeStyle=line;x.beginPath();x.moveTo(34,y);x.lineTo(w,y);x.stroke();x.fillStyle=mute;x.fillText(100-g*25+"%",0,y+4)}
+ [[0,"--acc"],[1,"--acc2"]].forEach(([k,v])=>{x.strokeStyle=cs.getPropertyValue(v);x.lineWidth=2;x.beginPath();hist.forEach((p,i)=>{const px=34+(w-34)*i/Math.max(59,1),py=10+(H-30)*(1-p[k]/100);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke()})}
+addEventListener("resize",()=>last&&render());
+(async()=>{const r=await api("/api/me");r.ok?enter():show("auth")})();
+</script></body></html>
