@@ -14,3 +14,12 @@ PATHS = {
     "export_dir": os.path.join(DATA_DIR, "exports"),
     "honeytoken": os.path.join(DATA_DIR, "decoy_aws_credentials.json"),
 }
+
+THEME = {
+    "bg": "#0f172a",
+    "sidebar": "#1e293b",
+    "card": "#334155",
+    "text": "#f8fafc",
+    "accent": "#0ea5e9",
+    "button": "#0284c7"
+}
