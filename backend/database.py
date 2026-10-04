@@ -1,4 +1,4 @@
-"""SQLite storage: logs, file hashes, folder baselines and user accounts."""
+"""SQLite storage: logs, file hashes, folder baselines, user accounts, and theme settings."""
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -36,10 +36,27 @@ def init_database():
                 PRIMARY KEY (folder, rel_path)
             );
             CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY, salt TEXT, pw_hash TEXT, iterations INTEGER
+                username TEXT PRIMARY KEY, 
+                salt TEXT, 
+                pw_hash TEXT, 
+                iterations INTEGER,
+                status TEXT DEFAULT 'pending',
+                role TEXT DEFAULT 'customer',
+                theme TEXT DEFAULT 'Dark Cyber'
             );
             """
         )
+        
+        # Upgrade existing database schema if columns are missing
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if "status" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
+        if "role" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'customer'")
+        if "theme" not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'Dark Cyber'")
 
 
 # ---------- logs ----------
@@ -80,7 +97,7 @@ def save_baseline(folder, entries):
     with _db() as conn:
         conn.execute("DELETE FROM baseline WHERE folder = ?", (folder,))
         conn.executemany(
-            "INSERT INTO baseline (folder, rel_path, sha256, size) VALUES (?, ?, ?, ?)",
+            "INSERT INTO baseline (folder, rel_path, sha256, size) VALUES (?, ?, ?)",
             [(folder, *e) for e in entries],
         )
 
@@ -93,16 +110,40 @@ def load_baseline(folder):
     return {r["rel_path"]: r["sha256"] for r in rows}
 
 
-# ---------- users ----------
+# ---------- users & administration ----------
 def get_user(username):
     with _db() as conn:
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     return dict(row) if row else None
 
 
-def add_user(username, salt_hex, hash_hex, iterations):
+def add_user(username, salt_hex, hash_hex, iterations, status="pending", role="customer", theme="Dark Cyber"):
     with _db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?)",
-            (username, salt_hex, hash_hex, iterations),
+            """
+            INSERT OR REPLACE INTO users (username, salt, pw_hash, iterations, status, role, theme)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (username, salt_hex, hash_hex, iterations, status, role, theme),
         )
+
+
+def fetch_pending_users():
+    """Returns all registrations waiting for admin approval."""
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT username, role, status FROM users WHERE status = 'pending'"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_user_status(username, status):
+    """Update registration status ('approved' or 'rejected')."""
+    with _db() as conn:
+        conn.execute("UPDATE users SET status = ? WHERE username = ?", (status, username))
+
+
+def update_user_theme(username, theme_name):
+    """Save customer theme selection."""
+    with _db() as conn:
+        conn.execute("UPDATE users SET theme = ? WHERE username = ?", (theme_name, username))
