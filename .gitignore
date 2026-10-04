@@ -1,5 +1,4 @@
-data/
-*.db
-__pycache__/
-*.pyc
-.venv/
+# Portal runtime files (private)
+portal/portal.db*
+portal/secret.key
+portal/demo_agent.key
