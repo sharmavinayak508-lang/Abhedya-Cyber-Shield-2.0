@@ -1,126 +1,93 @@
-"""Salted PBKDF2 password storage and registration approval verification."""
+import sqlite3
 import hashlib
-import hmac
 import os
-import time
+from backend.database import DB_PATH
 
-from backend import database
+def hash_password(password, salt=None):
+    """Hashes password using SHA-256 with salt."""
+    if not salt:
+        salt = os.urandom(16).hex()
+    hashed = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+    return f"{salt}:{hashed}"
 
-ITERATIONS = 200_000
-DEFAULT_USER = "admin"
-DEFAULT_PASSWORD = "Admin@123"
-
-
-def _hash(password, salt, iterations=ITERATIONS):
-    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-
-
-def register_user(username, password, role="customer"):
-    """Register a new user account (marked as pending approval)."""
-    if database.get_user(username) is not None:
-        return False, "Username already exists."
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long."
-
-    salt = os.urandom(16)
-    database.add_user(
-        username=username,
-        salt_hex=salt.hex(),
-        hash_hex=_hash(password, salt).hex(),
-        iterations=ITERATIONS,
-        status="pending",
-        role=role,
-        theme="Dark Cyber",
-    )
-    return True, "Registration submitted. Pending admin verification."
-
+def verify_password(stored_password_hash, provided_password):
+    """Verifies a stored password against provided input."""
+    if ":" not in stored_password_hash:
+        return False
+    salt, hashed = stored_password_hash.split(":", 1)
+    recalculated = hashlib.sha256((salt + provided_password).encode('utf-8')).hexdigest()
+    return recalculated == hashed
 
 def ensure_default_user():
-    """Ensure standard admin user exists and is pre-approved."""
-    if database.get_user(DEFAULT_USER) is None:
-        salt = os.urandom(16)
-        database.add_user(
-            username=DEFAULT_USER,
-            salt_hex=salt.hex(),
-            hash_hex=_hash(DEFAULT_PASSWORD, salt).hex(),
-            iterations=ITERATIONS,
-            status="approved",
-            role="admin",
-            theme="Dark Cyber",
-        )
-
-
-def verify_user(username, password):
-    """Verifies credentials AND checks if account is verified/approved by admin."""
-    row = database.get_user(username)
-    if row is None:
-        _hash(password, b"\x00" * 16)  # Maintain timing match
-        return False, "Invalid credentials.", None
-
-    expected = bytes.fromhex(row["pw_hash"])
-    actual = _hash(password, bytes.fromhex(row["salt"]), row["iterations"])
+    """Forces the default 'admin' user with password 'admin' to exist in the database."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
     
-    if not hmac.compare_digest(expected, actual):
-        return False, "Invalid credentials.", None
+    pwd_hash = hash_password("admin")
+    
+    cursor.execute("SELECT id FROM users WHERE username = 'admin'")
+    user = cursor.fetchone()
+    
+    if not user:
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
+            ("admin", pwd_hash, "admin", "approved")
+        )
+    else:
+        cursor.execute(
+            "UPDATE users SET password_hash = ?, role = 'admin', status = 'approved' WHERE username = 'admin'",
+            (pwd_hash,)
+        )
+        
+    conn.commit()
+    conn.close()
 
-    # Verification checks
-    if row["status"] == "pending":
-        return False, "Your registration is pending admin approval.", None
-    if row["status"] == "rejected":
-        return False, "Your registration request was rejected.", None
+def register_user(username, password):
+    """Registers a new user pending approval."""
+    if not username or not password:
+        return False, "Username and password cannot be empty."
 
-    return True, "Access granted.", row
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
+    cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+    if cursor.fetchone():
+        conn.close()
+        return False, "Username already exists."
 
-def change_password(username, old_password, new_password):
-    """Returns (ok, message)."""
-    ok, msg, user = verify_user(username, old_password)
-    if not ok:
-        return False, "Current password is incorrect."
-    if len(new_password) < 8:
-        return False, "New password must be at least 8 characters."
-
-    salt = os.urandom(16)
-    database.add_user(
-        username=username,
-        salt_hex=salt.hex(),
-        hash_hex=_hash(new_password, salt).hex(),
-        iterations=ITERATIONS,
-        status=user["status"],
-        role=user["role"],
-        theme=user.get("theme", "Dark Cyber"),
+    pwd_hash = hash_password(password)
+    cursor.execute(
+        "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
+        (username, pwd_hash, "user", "pending")
     )
-    return True, "Password updated successfully."
-
+    conn.commit()
+    conn.close()
+    return True, "Registration submitted! Pending admin verification."
 
 class LoginGuard:
-    """Locks the login form for a period after repeated failed attempts."""
-
-    def __init__(self, max_attempts=3, lock_seconds=30):
-        self.max_attempts = max_attempts
-        self.lock_seconds = lock_seconds
-        self.failures = 0
-        self.locked_until = 0.0
-
-    def seconds_locked(self):
-        return max(0, int(self.locked_until - time.time() + 0.999))
-
     def attempt(self, username, password):
-        """Returns (status, message, user_data). Status is 'ok', 'fail', or 'locked'."""
-        if self.seconds_locked() > 0:
-            return "locked", f"Locked. Try again in {self.seconds_locked()}s.", None
-        
-        ok, msg, user = verify_user(username, password)
-        if ok:
-            self.failures = 0
-            return "ok", msg, user
-        
-        self.failures += 1
-        if self.failures >= self.max_attempts:
-            self.failures = 0
-            self.locked_until = time.time() + self.lock_seconds
-            return "locked", f"Too many failures. Locked for {self.lock_seconds}s.", None
-        
-        left = self.max_attempts - self.failures
-        return "fail", f"{msg} Attempts remaining: {left}", None
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
 
+        cursor.execute("SELECT username, password_hash, role, status, theme FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return "error", "Invalid credentials.", None
+
+        db_user, db_hash, db_role, db_status, db_theme = row
+
+        if not verify_password(db_hash, password):
+            return "error", "Invalid credentials.", None
+
+        if db_status != "approved":
+            return "error", f"Account status is '{db_status}'. Awaiting admin approval.", None
+
+        user_data = {
+            "username": db_user,
+            "role": db_role,
+            "status": db_status,
+            "theme": db_theme or "Dark Cyber"
+        }
+        return "ok", "Login successful.", user_data
