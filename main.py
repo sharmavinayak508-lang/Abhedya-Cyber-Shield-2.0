@@ -2,7 +2,6 @@ import os
 import sys
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from PIL import Image, ImageTk
 
 # Core Config Imports with Fallback Protection
 import config
@@ -34,9 +33,18 @@ THEMES = getattr(config, "THEMES", {
     }
 })
 
-# Backend Security Modules
-from backend import auth, database, logger, scanner, password_gen, honeypot, ai_analyst
-from backend import vault, network_monitor, face_auth, threat_intel
+# Safe Backend Module Imports
+import backend
+from backend import auth, database, logger, password_gen
+
+# Direct module references with fallbacks
+scanner = getattr(backend, "scanner", None)
+vault = getattr(backend, "vault", None)
+network_monitor = getattr(backend, "network_monitor", None)
+face_auth = getattr(backend, "face_auth", None)
+threat_intel = getattr(backend, "threat_intel", None)
+ai_analyst = getattr(backend, "ai_analyst", None)
+
 
 class CyberShieldApp(tk.Tk):
     def __init__(self):
@@ -218,10 +226,13 @@ class CyberShieldApp(tk.Tk):
         tk.Label(card, text="Verifies live camera stream against human face detection model.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 15))
 
         def trigger_camera_auth():
+            if not face_auth:
+                messagebox.showerror("Error", "face_auth module not loaded.")
+                return
             messagebox.showinfo("Biometric Auth", "Opening webcam... Please look directly at the camera.")
             match = face_auth.verify_face_biometric()
             if match:
-                messagebox.showinfo("Access Granted", "Biometric verification successful! Facial match confirmed.")
+                messagebox.showinfo("Access Granted", "Biometric verification successful!")
                 logger.log_event(f"Biometric face verification PASSED for {self.current_user}", "INFO")
             else:
                 messagebox.showerror("Access Denied", "Face verification failed or webcam timed out.")
@@ -238,7 +249,6 @@ class CyberShieldApp(tk.Tk):
 
         tk.Label(self.main_content, text="AES-256 Vault & DoD File Shredder", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        # Encrypt File Box
         enc_card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=15)
         enc_card.pack(fill="x", padx=20, pady=10)
 
@@ -249,31 +259,36 @@ class CyberShieldApp(tk.Tk):
         secret_ent.insert(0, "MasterSecretKey")
 
         def select_and_encrypt():
+            if not vault:
+                messagebox.showerror("Error", "vault module not loaded.")
+                return
             filepath = filedialog.askopenfilename(title="Select Document/Photo to Encrypt")
             secret = secret_ent.get().strip()
             if filepath and secret:
                 if vault.encrypt_file(filepath, secret):
-                    messagebox.showinfo("Vault Success", f"Encrypted and stored in vault: {os.path.basename(filepath)}.enc")
+                    messagebox.showinfo("Vault Success", f"Encrypted and stored: {os.path.basename(filepath)}.enc")
                     logger.log_event(f"Encrypted file '{os.path.basename(filepath)}'", "INFO")
                 else:
                     messagebox.showerror("Vault Error", "Failed to encrypt file.")
 
         tk.Button(enc_card, text="Select & Encrypt File", bg="#3b82f6", fg="white", font=("Helvetica", 10, "bold"), relief="flat", command=select_and_encrypt).pack(anchor="w", pady=5)
 
-        # Shredder Box
         shred_card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=15)
         shred_card.pack(fill="x", padx=20, pady=10)
 
         tk.Label(shred_card, text="DoD 5220.22-M 3-PASS FILE SHREDDER", font=("Helvetica", 12, "bold"), fg="#ef4444", bg=theme["card"]).pack(anchor="w")
-        tk.Label(shred_card, text="Overwrites file with Zeros, Ones, and Cryptographic Random Bytes before deletion.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 10))
+        tk.Label(shred_card, text="Overwrites file with Zeros, Ones, and Random Bytes before deletion.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 10))
 
         def select_and_shred():
+            if not vault:
+                messagebox.showerror("Error", "vault module not loaded.")
+                return
             filepath = filedialog.askopenfilename(title="SELECT FILE TO PERMANENTLY DESTROY")
             if filepath:
-                confirm = messagebox.askyesno("WARNING", f"Are you sure you want to permanently shred:\n{filepath}?")
+                confirm = messagebox.askyesno("WARNING", f"Are you sure you want to shred:\n{filepath}?")
                 if confirm:
                     if vault.dod_shred_file(filepath):
-                        messagebox.showinfo("Shred Complete", "File permanently destroyed via DoD 3-pass wipe.")
+                        messagebox.showinfo("Shred Complete", "File permanently destroyed.")
                         logger.log_event(f"Shredded file '{os.path.basename(filepath)}'", "WARN")
                     else:
                         messagebox.showerror("Shred Error", "Could not shred file.")
@@ -289,26 +304,27 @@ class CyberShieldApp(tk.Tk):
 
         tk.Label(self.main_content, text="Active Network & Socket Telemetry", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        # Wi-Fi Profiles Section
-        wifi_profiles = network_monitor.audit_saved_wifi_profiles()
-        wifi_card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=10)
-        wifi_card.pack(fill="x", padx=20, pady=(0, 10))
-        
-        tk.Label(wifi_card, text=f"Saved Device Wi-Fi Profiles Found: {len(wifi_profiles)}", font=("Helvetica", 10, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
-        tk.Label(wifi_card, text=", ".join(wifi_profiles[:5]), font=("Consolas", 9), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
+        if network_monitor:
+            wifi_profiles = network_monitor.audit_saved_wifi_profiles()
+            wifi_card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=10)
+            wifi_card.pack(fill="x", padx=20, pady=(0, 10))
+            
+            tk.Label(wifi_card, text=f"Saved Device Wi-Fi Profiles Found: {len(wifi_profiles)}", font=("Helvetica", 10, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
+            tk.Label(wifi_card, text=", ".join(wifi_profiles[:5]), font=("Consolas", 9), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
 
-        # Active Network Connections Table
-        net_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 9), height=15, relief="flat", padx=10, pady=10)
-        net_box.pack(fill="both", expand=True, padx=20, pady=10)
+            net_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 9), height=15, relief="flat", padx=10, pady=10)
+            net_box.pack(fill="both", expand=True, padx=20, pady=10)
 
-        conns = network_monitor.get_active_network_connections()
-        net_box.insert("end", f"{'PID':<8} | {'PROCESS':<20} | {'LOCAL ADDRESS':<22} | {'REMOTE ADDRESS':<22}\n")
-        net_box.insert("end", "-" * 80 + "\n")
+            conns = network_monitor.get_active_network_connections()
+            net_box.insert("end", f"{'PID':<8} | {'PROCESS':<20} | {'LOCAL ADDRESS':<22} | {'REMOTE ADDRESS':<22}\n")
+            net_box.insert("end", "-" * 80 + "\n")
 
-        for c in conns:
-            net_box.insert("end", f"{c['pid']:<8} | {c['process'][:18]:<20} | {c['local']:<22} | {c['remote']:<22}\n")
+            for c in conns:
+                net_box.insert("end", f"{c['pid']:<8} | {c['process'][:18]:<20} | {c['local']:<22} | {c['remote']:<22}\n")
 
-        net_box.config(state="disabled")
+            net_box.config(state="disabled")
+        else:
+            tk.Label(self.main_content, text="Network monitor module not available.", fg="#ef4444", bg=theme["bg"]).pack(padx=20, pady=20)
 
     # ==========================================
     # PAGE 5: THREAT INTEL SCANNER
@@ -328,6 +344,9 @@ class CyberShieldApp(tk.Tk):
         res_lbl.pack(anchor="w", pady=(5, 15))
 
         def run_threat_scan():
+            if not threat_intel:
+                messagebox.showerror("Error", "threat_intel module not loaded.")
+                return
             filepath = filedialog.askopenfilename()
             if filepath:
                 sha256_hash = threat_intel.get_file_sha256(filepath)
@@ -352,6 +371,9 @@ class CyberShieldApp(tk.Tk):
 
         def start_scan():
             scan_box.delete("1.0", "end")
+            if not scanner:
+                scan_box.insert("end", "Scanner module not available.\n")
+                return
             scan_box.insert("end", "Initiating System File Integrity Audit...\n\n")
             results = scanner.run_full_system_scan()
             for r in results:
@@ -384,8 +406,11 @@ class CyberShieldApp(tk.Tk):
         ai_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 10), height=15, relief="flat", padx=10, pady=10)
         ai_box.pack(fill="both", expand=True, padx=20, pady=10)
 
-        insights = ai_analyst.generate_security_assessment()
-        ai_box.insert("end", insights)
+        if ai_analyst:
+            insights = ai_analyst.generate_security_assessment()
+            ai_box.insert("end", insights)
+        else:
+            ai_box.insert("end", "AI Analyst module not loaded.")
         ai_box.config(state="disabled")
 
     def render_admin_panel(self):
@@ -393,8 +418,7 @@ class CyberShieldApp(tk.Tk):
         theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
         tk.Label(self.main_content, text="Admin User Management & Audit Panel", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        # Metrics Card
-        stats = database.fetch_user_stats()
+        stats = database.fetch_user_stats() if hasattr(database, "fetch_user_stats") else {"total": 0, "approved": 0, "pending": 0, "rejected": 0}
         stats_frame = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
         stats_frame.pack(fill="x", padx=20, pady=(0, 15))
 
@@ -402,9 +426,8 @@ class CyberShieldApp(tk.Tk):
         metrics_text = f"Total Registered: {stats['total']}  |  Approved: {stats['approved']}  |  Pending: {stats['pending']}  |  Rejected: {stats['rejected']}"
         tk.Label(stats_frame, text=metrics_text, font=("Consolas", 11, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
 
-        # Pending Requests
         tk.Label(self.main_content, text="Pending Access Requests", font=("Helvetica", 14, "bold"), fg=theme["text"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=(10, 5))
-        pending_users = database.fetch_pending_users()
+        pending_users = database.fetch_pending_users() if hasattr(database, "fetch_pending_users") else []
 
         if not pending_users:
             tk.Label(self.main_content, text="No pending registration requests.", fg="#94a3b8", bg=theme["bg"]).pack(anchor="w", padx=20, pady=(0, 10))
@@ -429,6 +452,7 @@ class CyberShieldApp(tk.Tk):
 
                 tk.Button(row, text="Approve", bg="#10b981", fg="white", command=approve).pack(side="right", padx=5)
                 tk.Button(row, text="Reject", bg="#ef4444", fg="white", command=reject).pack(side="right")
+
 
 if __name__ == "__main__":
     app = CyberShieldApp()
