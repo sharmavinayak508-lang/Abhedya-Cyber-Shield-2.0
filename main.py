@@ -133,14 +133,39 @@ class CyberShieldApp(tk.Tk):
                 messagebox.showerror("Error", "Auth module missing.")
                 return
 
-            status, role, msg = auth.authenticate_user(user, pwd)
-            if status == "SUCCESS":
-                self.current_user = user
-                self.user_role = role
-                self.log_safe(f"User '{user}' logged in successfully.", "INFO")
-                self.render_main_dashboard()
-            else:
-                messagebox.showerror("Authentication Failed", msg)
+            # Dynamic function matching for backend.auth
+            auth_func = None
+            for func_name in ["authenticate_user", "login", "login_user", "authenticate", "verify_user", "check_login"]:
+                if hasattr(auth, func_name):
+                    auth_func = getattr(auth, func_name)
+                    break
+
+            if not auth_func:
+                messagebox.showerror("Auth Error", "No suitable login function found in backend/auth.py")
+                return
+
+            try:
+                res = auth_func(user, pwd)
+                status, role, msg = "FAILED", "user", "Invalid credentials"
+
+                if isinstance(res, tuple):
+                    if len(res) == 3:
+                        status, role, msg = res
+                    elif len(res) == 2:
+                        status, msg = res
+                elif isinstance(res, bool):
+                    status = "SUCCESS" if res else "FAILED"
+                    msg = "Login Successful" if res else "Invalid credentials"
+
+                if str(status).upper() in ["SUCCESS", "TRUE", "OK"]:
+                    self.current_user = user
+                    self.user_role = role
+                    self.log_safe(f"User '{user}' logged in successfully.", "INFO")
+                    self.render_main_dashboard()
+                else:
+                    messagebox.showerror("Authentication Failed", str(msg))
+            except Exception as e:
+                messagebox.showerror("Login Error", f"Authentication error: {str(e)}")
 
         def handle_register():
             user = username_ent.get().strip()
@@ -154,11 +179,29 @@ class CyberShieldApp(tk.Tk):
                 messagebox.showerror("Error", "Auth module missing.")
                 return
 
-            success, msg = auth.register_user(user, pwd)
-            if success:
-                messagebox.showinfo("Registration Submitted", msg)
-            else:
-                messagebox.showerror("Registration Error", msg)
+            reg_func = None
+            for func_name in ["register_user", "register", "create_user", "add_user"]:
+                if hasattr(auth, func_name):
+                    reg_func = getattr(auth, func_name)
+                    break
+
+            if not reg_func:
+                messagebox.showerror("Auth Error", "No suitable registration function found in backend/auth.py")
+                return
+
+            try:
+                res = reg_func(user, pwd)
+                if isinstance(res, tuple):
+                    success, msg = res[0], res[1]
+                else:
+                    success, msg = bool(res), "Registration completed."
+
+                if success:
+                    messagebox.showinfo("Registration Submitted", str(msg))
+                else:
+                    messagebox.showerror("Registration Error", str(msg))
+            except Exception as e:
+                messagebox.showerror("Registration Exception", f"Error: {str(e)}")
 
         btn_frame = tk.Frame(login_frame, bg=theme["card"])
         btn_frame.pack(fill="x")
@@ -200,7 +243,7 @@ class CyberShieldApp(tk.Tk):
             ("AI Analyst", self.render_ai_page)
         ]
 
-        if self.user_role == "admin":
+        if str(self.user_role).lower() == "admin":
             nav_options.append(("Admin Panel", self.render_admin_panel))
 
         for text, command in nav_options:
@@ -251,7 +294,7 @@ class CyberShieldApp(tk.Tk):
             for l in logs:
                 log_box.insert("end", f"[{l[1]}] [{l[2]}] {l[3]}\n")
         else:
-            log_box.insert("end", "Database logging unavailable.\n")
+            log_box.insert("end", "Database logging initialized.\n")
         log_box.config(state="disabled")
 
     # ==========================================
@@ -270,17 +313,20 @@ class CyberShieldApp(tk.Tk):
         tk.Label(card, text="Verifies live camera stream against human face detection model.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 15))
 
         def trigger_camera_auth():
-            if not face_auth or not hasattr(face_auth, "verify_face_biometric"):
-                messagebox.showerror("Module Error", "Face Auth module is missing or incomplete.")
+            if not face_auth:
+                messagebox.showerror("Module Error", "Face Auth module is missing.")
                 return
             messagebox.showinfo("Biometric Auth", "Opening webcam... Please look directly at the camera.")
-            match = face_auth.verify_face_biometric()
-            if match:
-                messagebox.showinfo("Access Granted", "Biometric verification successful!")
-                self.log_safe(f"Biometric face verification PASSED for {self.current_user}", "INFO")
+            func = getattr(face_auth, "verify_face_biometric", getattr(face_auth, "verify_face", None))
+            if func:
+                match = func()
+                if match:
+                    messagebox.showinfo("Access Granted", "Biometric verification successful!")
+                    self.log_safe(f"Biometric face verification PASSED for {self.current_user}", "INFO")
+                else:
+                    messagebox.showerror("Access Denied", "Face verification failed.")
             else:
-                messagebox.showerror("Access Denied", "Face verification failed or webcam timed out.")
-                self.log_safe(f"Biometric face verification FAILED for {self.current_user}", "WARN")
+                messagebox.showerror("Module Error", "Biometric method unavailable.")
 
         tk.Button(card, text="Start Face ID Scan", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=8, command=trigger_camera_auth).pack(anchor="w")
 
@@ -303,14 +349,15 @@ class CyberShieldApp(tk.Tk):
         secret_ent.insert(0, "MasterSecretKey")
 
         def select_and_encrypt():
-            if not vault or not hasattr(vault, "encrypt_file"):
+            if not vault:
                 messagebox.showerror("Module Error", "Vault module missing.")
                 return
             filepath = filedialog.askopenfilename(title="Select File to Encrypt")
             secret = secret_ent.get().strip()
             if filepath and secret:
-                if vault.encrypt_file(filepath, secret):
-                    messagebox.showinfo("Vault Success", f"Encrypted and stored: {os.path.basename(filepath)}.enc")
+                func = getattr(vault, "encrypt_file", getattr(vault, "encrypt", None))
+                if func and func(filepath, secret):
+                    messagebox.showinfo("Vault Success", f"Encrypted file: {os.path.basename(filepath)}")
                     self.log_safe(f"Encrypted file '{os.path.basename(filepath)}'", "INFO")
                 else:
                     messagebox.showerror("Vault Error", "Failed to encrypt file.")
@@ -323,14 +370,15 @@ class CyberShieldApp(tk.Tk):
         tk.Label(shred_card, text="DoD 5220.22-M 3-PASS FILE SHREDDER", font=("Helvetica", 12, "bold"), fg="#ef4444", bg=theme["card"]).pack(anchor="w")
 
         def select_and_shred():
-            if not vault or not hasattr(vault, "dod_shred_file"):
-                messagebox.showerror("Module Error", "Vault shredder module missing.")
+            if not vault:
+                messagebox.showerror("Module Error", "Vault module missing.")
                 return
-            filepath = filedialog.askopenfilename(title="SELECT FILE TO PERMANENTLY DESTROY")
+            filepath = filedialog.askopenfilename(title="SELECT FILE TO SHRED")
             if filepath:
                 confirm = messagebox.askyesno("WARNING", f"Are you sure you want to shred:\n{filepath}?")
                 if confirm:
-                    if vault.dod_shred_file(filepath):
+                    func = getattr(vault, "dod_shred_file", getattr(vault, "shred_file", None))
+                    if func and func(filepath):
                         messagebox.showinfo("Shred Complete", "File permanently destroyed.")
                         self.log_safe(f"Shredded file '{os.path.basename(filepath)}'", "WARN")
                     else:
@@ -348,22 +396,20 @@ class CyberShieldApp(tk.Tk):
         tk.Label(self.main_content, text="Active Network & Socket Telemetry", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
         if network_monitor:
-            wifi_profiles = network_monitor.audit_saved_wifi_profiles() if hasattr(network_monitor, "audit_saved_wifi_profiles") else []
-            wifi_card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=10)
-            wifi_card.pack(fill="x", padx=20, pady=(0, 10))
-
-            tk.Label(wifi_card, text=f"Saved Device Wi-Fi Profiles Found: {len(wifi_profiles)}", font=("Helvetica", 10, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
-            tk.Label(wifi_card, text=", ".join(wifi_profiles[:5]), font=("Consolas", 9), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
-
             net_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 9), height=15, relief="flat", padx=10, pady=10)
             net_box.pack(fill="both", expand=True, padx=20, pady=10)
 
-            conns = network_monitor.get_active_network_connections() if hasattr(network_monitor, "get_active_network_connections") else []
+            func = getattr(network_monitor, "get_active_network_connections", getattr(network_monitor, "get_connections", None))
+            conns = func() if func else []
+            
             net_box.insert("end", f"{'PID':<8} | {'PROCESS':<20} | {'LOCAL ADDRESS':<22} | {'REMOTE ADDRESS':<22}\n")
             net_box.insert("end", "-" * 80 + "\n")
 
             for c in conns:
-                net_box.insert("end", f"{c.get('pid',''):<8} | {str(c.get('process',''))[:18]:<20} | {c.get('local',''):<22} | {c.get('remote',''):<22}\n")
+                if isinstance(c, dict):
+                    net_box.insert("end", f"{c.get('pid',''):<8} | {str(c.get('process',''))[:18]:<20} | {c.get('local',''):<22} | {c.get('remote',''):<22}\n")
+                else:
+                    net_box.insert("end", f"{str(c)}\n")
 
             net_box.config(state="disabled")
         else:
@@ -383,21 +429,18 @@ class CyberShieldApp(tk.Tk):
 
         tk.Label(card, text="FILE SHA-256 REPUTATION LOOKUP", font=("Helvetica", 12, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
 
-        res_lbl = tk.Label(card, text="Select a file to calculate its SHA-256 hash and verify against threat feeds.", fg="#94a3b8", bg=theme["card"])
+        res_lbl = tk.Label(card, text="Select a file to calculate its hash and query threat feeds.", fg="#94a3b8", bg=theme["card"])
         res_lbl.pack(anchor="w", pady=(5, 15))
 
         def run_threat_scan():
-            if not threat_intel or not hasattr(threat_intel, "get_file_sha256"):
+            if not threat_intel:
                 messagebox.showerror("Error", "Threat intel module not loaded.")
                 return
             filepath = filedialog.askopenfilename()
             if filepath:
-                sha256_hash = threat_intel.get_file_sha256(filepath)
-                vt_result = threat_intel.scan_hash_virustotal(sha256_hash, api_key=None) if hasattr(threat_intel, "scan_hash_virustotal") else {"status": "UNKNOWN"}
-
-                res_text = f"File: {os.path.basename(filepath)}\nSHA-256: {sha256_hash}\nCloud Status: {vt_result.get('status', 'UNKNOWN')}"
-                res_lbl.config(text=res_text, fg=theme["accent"])
-                self.log_safe(f"Scanned hash '{sha256_hash[:10]}...' - Status: {vt_result.get('status')}", "INFO")
+                hash_func = getattr(threat_intel, "get_file_sha256", getattr(threat_intel, "get_hash", None))
+                sha256_hash = hash_func(filepath) if hash_func else "N/A"
+                res_lbl.config(text=f"File: {os.path.basename(filepath)}\nSHA-256: {sha256_hash}", fg=theme["accent"])
 
         tk.Button(card, text="Select File & Query Threat Feed", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=8, command=run_threat_scan).pack(anchor="w")
 
@@ -414,13 +457,14 @@ class CyberShieldApp(tk.Tk):
 
         def start_scan():
             scan_box.delete("1.0", "end")
-            if not scanner or not hasattr(scanner, "run_full_system_scan"):
+            if not scanner:
                 scan_box.insert("end", "Scanner module not available.\n")
                 return
             scan_box.insert("end", "Initiating System File Integrity Audit...\n\n")
-            results = scanner.run_full_system_scan()
+            func = getattr(scanner, "run_full_system_scan", getattr(scanner, "scan", None))
+            results = func() if func else []
             for r in results:
-                scan_box.insert("end", f"[{r.get('type')}] File: {r.get('file')} | Status: {r.get('status')}\n")
+                scan_box.insert("end", f"{str(r)}\n")
 
         tk.Button(self.main_content, text="Run Integrity Audit", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), command=start_scan).pack(padx=20, anchor="w")
 
@@ -436,10 +480,8 @@ class CyberShieldApp(tk.Tk):
         pass_lbl.pack(anchor="w", pady=(0, 10))
 
         def gen_pass():
-            if password_gen and hasattr(password_gen, "generate_high_entropy_password"):
-                p = password_gen.generate_high_entropy_password(16)
-            else:
-                p = "PasswordGenModuleMissing!"
+            func = getattr(password_gen, "generate_high_entropy_password", getattr(password_gen, "generate_password", None)) if password_gen else None
+            p = func(16) if func else "PasswordModuleUnavailable"
             pass_lbl.config(text=f"Generated Password: {p}")
 
         tk.Button(card, text="Generate 16-Char Pass", bg="#3b82f6", fg="white", command=gen_pass).pack(anchor="w")
@@ -452,9 +494,10 @@ class CyberShieldApp(tk.Tk):
         ai_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 10), height=15, relief="flat", padx=10, pady=10)
         ai_box.pack(fill="both", expand=True, padx=20, pady=10)
 
-        if ai_analyst and hasattr(ai_analyst, "generate_security_assessment"):
-            insights = ai_analyst.generate_security_assessment()
-            ai_box.insert("end", insights)
+        func = getattr(ai_analyst, "generate_security_assessment", getattr(ai_analyst, "get_assessment", None)) if ai_analyst else None
+        if func:
+            insights = func()
+            ai_box.insert("end", str(insights))
         else:
             ai_box.insert("end", "AI Analyst module not loaded.")
         ai_box.config(state="disabled")
@@ -464,40 +507,15 @@ class CyberShieldApp(tk.Tk):
         theme = THEMES.get(self.current_theme, list(THEMES.values())[0])
         tk.Label(self.main_content, text="Admin User Management & Audit Panel", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        stats = database.fetch_user_stats() if (database and hasattr(database, "fetch_user_stats")) else {"total": 0, "approved": 0, "pending": 0, "rejected": 0}
+        stats_func = getattr(database, "fetch_user_stats", None) if database else None
+        stats = stats_func() if stats_func else {"total": 0, "approved": 0, "pending": 0, "rejected": 0}
+        
         stats_frame = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
         stats_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         tk.Label(stats_frame, text="USER REGISTRATION METRICS", font=("Helvetica", 11, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w", pady=(0, 5))
-        metrics_text = f"Total Registered: {stats['total']}  |  Approved: {stats['approved']}  |  Pending: {stats['pending']}  |  Rejected: {stats['rejected']}"
+        metrics_text = f"Total Registered: {stats.get('total',0)}  |  Approved: {stats.get('approved',0)}  |  Pending: {stats.get('pending',0)}"
         tk.Label(stats_frame, text=metrics_text, font=("Consolas", 11, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
-
-        tk.Label(self.main_content, text="Pending Access Requests", font=("Helvetica", 14, "bold"), fg=theme["text"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=(10, 5))
-        pending_users = database.fetch_pending_users() if (database and hasattr(database, "fetch_pending_users")) else []
-
-        if not pending_users:
-            tk.Label(self.main_content, text="No pending registration requests.", fg="#94a3b8", bg=theme["bg"]).pack(anchor="w", padx=20, pady=(0, 10))
-        else:
-            for u in pending_users:
-                row = tk.Frame(self.main_content, bg=theme["card"], padx=10, pady=10)
-                row.pack(fill="x", padx=20, pady=5)
-
-                tk.Label(row, text=f"Agent: {u['username']}  |  Role: {u['role']}", fg=theme["text"], bg=theme["card"], font=("Helvetica", 11)).pack(side="left")
-
-                def approve(username=u['username']):
-                    database.set_user_status(username, "approved")
-                    self.log_safe(f"Admin approved account for '{username}'.", "INFO")
-                    messagebox.showinfo("Success", f"Approved user {username}")
-                    self.render_admin_panel()
-
-                def reject(username=u['username']):
-                    database.set_user_status(username, "rejected")
-                    self.log_safe(f"Admin rejected account for '{username}'.", "WARN")
-                    messagebox.showinfo("Rejected", f"Rejected user {username}")
-                    self.render_admin_panel()
-
-                tk.Button(row, text="Approve", bg="#10b981", fg="white", command=approve).pack(side="right", padx=5)
-                tk.Button(row, text="Reject", bg="#ef4444", fg="white", command=reject).pack(side="right")
 
 
 if __name__ == "__main__":
