@@ -1,93 +1,93 @@
 import sqlite3
 import hashlib
 import os
-from backend.database import DB_PATH
 
-def hash_password(password, salt=None):
-    """Hashes password using SHA-256 with salt."""
-    if not salt:
-        salt = os.urandom(16).hex()
-    hashed = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
-    return f"{salt}:{hashed}"
+# --- DATABASE CONFIG ---
+DB_PATH = os.path.join("data", "cybershield.db")
 
-def verify_password(stored_password_hash, provided_password):
-    """Verifies a stored password against provided input."""
-    if ":" not in stored_password_hash:
-        return False
-    salt, hashed = stored_password_hash.split(":", 1)
-    recalculated = hashlib.sha256((salt + provided_password).encode('utf-8')).hexdigest()
-    return recalculated == hashed
-
-def ensure_default_user():
-    """Forces the default 'admin' user with password 'admin' to exist in the database."""
+def _get_connection():
+    if not os.path.exists("data"):
+        os.makedirs("data")
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def _hash_password(password):
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+# Ensure users table exists
+def _init_auth_db():
+    conn = _get_connection()
     cursor = conn.cursor()
-    
-    pwd_hash = hash_password("admin")
-    
-    cursor.execute("SELECT id FROM users WHERE username = 'admin'")
-    user = cursor.fetchone()
-    
-    if not user:
-        cursor.execute(
-            "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
-            ("admin", pwd_hash, "admin", "approved")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            status TEXT DEFAULT 'approved'
         )
-    else:
+    """)
+    # Seed default admin account if table is empty
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        admin_pass_hash = _hash_password("admin")
         cursor.execute(
-            "UPDATE users SET password_hash = ?, role = 'admin', status = 'approved' WHERE username = 'admin'",
-            (pwd_hash,)
+            "INSERT INTO users (username, password, role, status) VALUES (?, ?, ?, ?)",
+            ("admin", admin_pass_hash, "admin", "approved")
         )
-        
     conn.commit()
     conn.close()
 
-def register_user(username, password):
-    """Registers a new user pending approval."""
-    if not username or not password:
-        return False, "Username and password cannot be empty."
+# Initialize table on import
+_init_auth_db()
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
 
-    cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
-    if cursor.fetchone():
-        conn.close()
-        return False, "Username already exists."
-
-    pwd_hash = hash_password(password)
-    cursor.execute(
-        "INSERT INTO users (username, password_hash, role, status) VALUES (?, ?, ?, ?)",
-        (username, pwd_hash, "user", "pending")
-    )
-    conn.commit()
-    conn.close()
-    return True, "Registration submitted! Pending admin verification."
-
-class LoginGuard:
-    def attempt(self, username, password):
-        conn = sqlite3.connect(DB_PATH)
+# ==========================================
+# AUTHENTICATION FUNCTIONS
+# ==========================================
+def authenticate_user(username, password):
+    """ Authenticates a user against the SQLite database """
+    try:
+        conn = _get_connection()
         cursor = conn.cursor()
+        hashed_pwd = _hash_password(password)
 
-        cursor.execute("SELECT username, password_hash, role, status, theme FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT role, status FROM users WHERE username = ? AND password = ?", (username, hashed_pwd))
         row = cursor.fetchone()
         conn.close()
 
-        if not row:
-            return "error", "Invalid credentials.", None
+        if row:
+            role = row["role"]
+            status = row["status"]
+            if status.lower() in ["approved", "active"]:
+                return "SUCCESS", role, "Login Successful"
+            else:
+                return "FAILED", "user", "Account pending approval by Admin."
+        else:
+            return "FAILED", "user", "Invalid username or password."
+    except Exception as e:
+        return "FAILED", "user", f"Database error: {str(e)}"
 
-        db_user, db_hash, db_role, db_status, db_theme = row
+def register_user(username, password, role="user"):
+    """ Registers a new user in the database """
+    try:
+        conn = _get_connection()
+        cursor = conn.cursor()
+        hashed_pwd = _hash_password(password)
 
-        if not verify_password(db_hash, password):
-            return "error", "Invalid credentials.", None
+        cursor.execute("INSERT INTO users (username, password, role, status) VALUES (?, ?, ?, ?)",
+                       (username, hashed_pwd, role, "approved"))
+        conn.commit()
+        conn.close()
+        return True, "Registration successful! You can now log in."
+    except sqlite3.IntegrityError:
+        return False, "Username already exists. Choose another."
+    except Exception as e:
+        return False, f"Registration failed: {str(e)}"
 
-        if db_status != "approved":
-            return "error", f"Account status is '{db_status}'. Awaiting admin approval.", None
-
-        user_data = {
-            "username": db_user,
-            "role": db_role,
-            "status": db_status,
-            "theme": db_theme or "Dark Cyber"
-        }
-        return "ok", "Login successful.", user_data
+# Alias function names for backward compatibility
+authenticate = authenticate_user
+login = authenticate_user
+login_user = authenticate_user
+register = register_user
