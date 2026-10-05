@@ -1,408 +1,423 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
-# Import backend modules
-from backend import database, auth, password_tools, file_tools, network_tools, logger, exporter, honeytoken
-
-# Color themes configuration
-THEMES = {
-    "Dark Cyber": {
-        "bg": "#0f172a",
-        "sidebar": "#1e293b",
-        "card": "#334155",
-        "text": "#f8fafc",
-        "accent": "#0ea5e9",
-        "button": "#0284c7"
-    },
-    "Light Modern": {
-        "bg": "#f8fafc",
-        "sidebar": "#e2e8f0",
-        "card": "#ffffff",
-        "text": "#0f172a",
-        "accent": "#0284c7",
-        "button": "#0284c7"
-    },
-    "Matrix Green": {
-        "bg": "#052e16",
-        "sidebar": "#064e3b",
-        "card": "#14532d",
-        "text": "#f0fdf4",
-        "accent": "#22c55e",
-        "button": "#15803d"
-    }
-}
+# Core Config & Database Imports
+from config import THEMES, PATHS
+from backend import auth, database, logger, scanner, password_gen, honeypot, ai_analyst
+# New Enterprise Security Modules
+from backend import vault, network_monitor, face_auth, threat_intel
 
 class CyberShieldApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("INVINCIBLE CYBER SHIELD - Security Suite")
+        self.title("Invincible Cyber Shield v2.0 - Enterprise Security Suite")
         self.geometry("1100x700")
+        self.minsize(950, 600)
 
-        # Initialize Backend
+        # Database Initialization
         database.init_database()
-        auth.ensure_default_user()
 
-        self.login_guard = auth.LoginGuard()
+        # Session State
         self.current_user = None
+        self.user_role = "user"
         self.current_theme = "Dark Cyber"
 
-        # Background Image Handling
-        self.bg_image_path = os.path.join(os.path.dirname(__file__), "bg.jpg")
-        if not os.path.exists(self.bg_image_path):
-            self.bg_image_path = os.path.join(os.path.dirname(__file__), "bg.png")
+        # Window Layout Frames
+        self.sidebar = None
+        self.main_content = None
+        self.bg_label = None
 
-        # Container Frame
-        self.container = tk.Frame(self)
-        self.container.pack(fill="both", expand=True)
+        self.render_login_screen()
 
-        # Start with Login Screen
-        self.show_login_screen()
-
-    # ================= HELPER FOR BACKGROUND IMAGE =================
-    def apply_background(self, parent_frame):
-        if os.path.exists(self.bg_image_path):
+    # ==========================================
+    # BACKGROUND IMAGE & THEME HELPERS
+    # ==========================================
+    def set_background_image(self, parent_frame):
+        bg_path = PATHS.get("bg_image", "")
+        if os.path.exists(bg_path):
             try:
-                raw_img = Image.open(self.bg_image_path)
-                resized_img = raw_img.resize((1100, 700), Image.Resampling.LANCZOS)
-                self.bg_photo = ImageTk.PhotoImage(resized_img)
-
-                bg_label = tk.Label(parent_frame, image=self.bg_photo)
+                img = Image.open(bg_path)
+                img = img.resize((1100, 700), Image.LANCZOS)
+                self.bg_image_tk = ImageTk.PhotoImage(img)
+                bg_label = tk.Label(parent_frame, image=self.bg_image_tk)
                 bg_label.place(x=0, y=0, relwidth=1, relheight=1)
             except Exception as e:
-                print(f"Background render note: {e}")
+                logger.log_event(f"Failed to render background image: {e}", "WARN")
 
-    # ================= AUTHENTICATION SCREENS =================
-    def show_login_screen(self):
-        self.clear_container()
-        frame = tk.Frame(self.container, bg="#0f172a")
-        frame.pack(fill="both", expand=True)
+    # ==========================================
+    # LOGIN & REGISTRATION WORKFLOW
+    # ==========================================
+    def render_login_screen(self):
+        for widget in self.winfo_children():
+            widget.destroy()
 
-        # Render background logo
-        self.apply_background(frame)
-
-        # Overlay Glassmorphism Box
-        box = tk.Frame(frame, bg="#0f172a", padx=35, pady=35, highlightbackground="#0ea5e9", highlightthickness=2)
-        box.place(relx=0.5, rely=0.5, anchor="center")
-
-        tk.Label(box, text="INVINCIBLE CYBER SHIELD", font=("Helvetica", 16, "bold"), fg="#0ea5e9", bg="#0f172a").pack(pady=(0, 5))
-        tk.Label(box, text="PROTECTION ENGINE LOGIN", font=("Helvetica", 10), fg="#94a3b8", bg="#0f172a").pack(pady=(0, 15))
-
-        tk.Label(box, text="Username", fg="#ffffff", bg="#0f172a", font=("Helvetica", 10, "bold")).pack(anchor="w")
-        entry_user = tk.Entry(box, width=32, font=("Consolas", 11), bg="#1e293b", fg="#ffffff", insertbackground="#ffffff", bd=1)
-        entry_user.pack(pady=(2, 10))
-
-        tk.Label(box, text="Password", fg="#ffffff", bg="#0f172a", font=("Helvetica", 10, "bold")).pack(anchor="w")
-        entry_pass = tk.Entry(box, show="*", width=32, font=("Consolas", 11), bg="#1e293b", fg="#ffffff", insertbackground="#ffffff", bd=1)
-        entry_pass.pack(pady=(2, 10))
-
-        lbl_msg = tk.Label(box, text="", fg="#ef4444", bg="#0f172a", font=("Helvetica", 9))
-        lbl_msg.pack(pady=5)
-
-        def do_login():
-            user = entry_user.get()
-            pwd = entry_pass.get()
-            status, msg, user_data = self.login_guard.attempt(user, pwd)
-            
-            if status == "ok":
-                self.current_user = user_data
-                self.current_theme = user_data.get("theme", "Dark Cyber")
-                logger.log_event(f"User '{user}' logged in successfully.", "INFO")
-                self.show_dashboard_screen()
-            else:
-                lbl_msg.config(text=msg)
-
-        tk.Button(box, text="AUTHORIZE ACCESS", bg="#0ea5e9", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_login, bd=0, pady=6, cursor="hand2").pack(pady=8)
-        tk.Button(box, text="Register New Account", bg="#334155", fg="white", width=28, command=self.show_register_screen, bd=0, pady=5, cursor="hand2").pack()
-
-    def show_register_screen(self):
-        self.clear_container()
-        frame = tk.Frame(self.container, bg="#0f172a")
-        frame.pack(fill="both", expand=True)
-
-        self.apply_background(frame)
-
-        box = tk.Frame(frame, bg="#0f172a", padx=35, pady=35, highlightbackground="#10b981", highlightthickness=2)
-        box.place(relx=0.5, rely=0.5, anchor="center")
-
-        tk.Label(box, text="NEW AGENT REGISTRATION", font=("Helvetica", 15, "bold"), fg="#10b981", bg="#0f172a").pack(pady=(0, 15))
-
-        tk.Label(box, text="Choose Username", fg="#ffffff", bg="#0f172a", font=("Helvetica", 10, "bold")).pack(anchor="w")
-        entry_user = tk.Entry(box, width=32, font=("Consolas", 11), bg="#1e293b", fg="#ffffff", insertbackground="#ffffff", bd=1)
-        entry_user.pack(pady=(2, 10))
-
-        tk.Label(box, text="Choose Password", fg="#ffffff", bg="#0f172a", font=("Helvetica", 10, "bold")).pack(anchor="w")
-        entry_pass = tk.Entry(box, show="*", width=32, font=("Consolas", 11), bg="#1e293b", fg="#ffffff", insertbackground="#ffffff", bd=1)
-        entry_pass.pack(pady=(2, 10))
-
-        lbl_msg = tk.Label(box, text="", fg="#10b981", bg="#0f172a", font=("Helvetica", 9))
-        lbl_msg.pack(pady=5)
-
-        def do_register():
-            user = entry_user.get()
-            pwd = entry_pass.get()
-            ok, msg = auth.register_user(user, pwd)
-            lbl_msg.config(text=msg, fg="#10b981" if ok else "#ef4444")
-            if ok:
-                logger.log_event(f"New registration request submitted for '{user}'.", "WARN")
-
-        tk.Button(box, text="SUBMIT REGISTRATION", bg="#10b981", fg="white", font=("Helvetica", 10, "bold"), width=28, command=do_register, bd=0, pady=6, cursor="hand2").pack(pady=8)
-        tk.Button(box, text="Back to Login", bg="#334155", fg="white", width=28, command=self.show_login_screen, bd=0, pady=5, cursor="hand2").pack()
-
-    # ================= MAIN DASHBOARD & NAVIGATION =================
-    def show_dashboard_screen(self):
-        self.clear_container()
         theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+        self.configure(bg=theme["bg"])
 
-        self.sidebar = tk.Frame(self.container, bg=theme["sidebar"], width=230)
+        login_frame = tk.Frame(self, bg=theme["card"], padx=30, pady=30, highlightthickness=1, highlightbackground=theme["accent"])
+        login_frame.place(relx=0.5, rely=0.5, anchor="center")
+
+        tk.Label(login_frame, text="INVINCIBLE CYBER SHIELD", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["card"]).pack(pady=(0, 5))
+        tk.Label(login_frame, text="Enterprise Endpoint Security & Access Control", font=("Helvetica", 10), fg="#94a3b8", bg=theme["card"]).pack(pady=(0, 20))
+
+        tk.Label(login_frame, text="Username", fg=theme["text"], bg=theme["card"], font=("Helvetica", 10, "bold")).pack(anchor="w")
+        username_ent = tk.Entry(login_frame, font=("Helvetica", 11), bg=theme["bg"], fg=theme["text"], insertbackground=theme["text"])
+        username_ent.pack(fill="x", pady=(0, 15))
+
+        tk.Label(login_frame, text="Password", fg=theme["text"], bg=theme["card"], font=("Helvetica", 10, "bold")).pack(anchor="w")
+        password_ent = tk.Entry(login_frame, show="*", font=("Helvetica", 11), bg=theme["bg"], fg=theme["text"], insertbackground=theme["text"])
+        password_ent.pack(fill="x", pady=(0, 20))
+
+        def handle_login():
+            user = username_ent.get().strip()
+            pwd = password_ent.get().strip()
+            
+            status, role, msg = auth.authenticate_user(user, pwd)
+            if status == "SUCCESS":
+                self.current_user = user
+                self.user_role = role
+                logger.log_event(f"User '{user}' logged in successfully.", "INFO")
+                self.render_main_dashboard()
+            else:
+                messagebox.showerror("Authentication Failed", msg)
+
+        def handle_register():
+            user = username_ent.get().strip()
+            pwd = password_ent.get().strip()
+            
+            if not user or not pwd:
+                messagebox.showwarning("Input Error", "Please provide both username and password.")
+                return
+
+            success, msg = auth.register_user(user, pwd)
+            if success:
+                messagebox.showinfo("Registration Submitted", msg)
+            else:
+                messagebox.showerror("Registration Error", msg)
+
+        btn_frame = tk.Frame(login_frame, bg=theme["card"])
+        btn_frame.pack(fill="x")
+
+        tk.Button(btn_frame, text="Login", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=5, command=handle_login).pack(side="left", expand=True, fill="x", padx=(0, 5))
+        tk.Button(btn_frame, text="Register", bg="#334155", fg="white", font=("Helvetica", 10), relief="flat", padx=15, pady=5, command=handle_register).pack(side="right", expand=True, fill="x", padx=(5, 0))
+
+    # ==========================================
+    # MAIN DASHBOARD & NAVIGATION
+    # ==========================================
+    def render_main_dashboard(self):
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+        self.configure(bg=theme["bg"])
+
+        # Sidebar
+        self.sidebar = tk.Frame(self, bg=theme["card"], width=220)
         self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
 
-        self.main_content = tk.Frame(self.container, bg=theme["bg"])
-        self.main_content.pack(side="right", fill="both", expand=True)
+        tk.Label(self.sidebar, text="CYBER SHIELD", font=("Helvetica", 14, "bold"), fg=theme["accent"], bg=theme["card"]).pack(pady=(20, 5))
+        tk.Label(self.sidebar, text=f"Agent: {self.current_user}\nRole: {self.user_role.upper()}", font=("Consolas", 9), fg="#94a3b8", bg=theme["card"]).pack(pady=(0, 20))
 
-        tk.Label(self.sidebar, text="CYBER SHIELD", font=("Helvetica", 16, "bold"), fg=theme["accent"], bg=theme["sidebar"]).pack(pady=(20, 2))
-        tk.Label(self.sidebar, text="PROTECTION ENGINE", font=("Helvetica", 8, "bold"), fg="#64748b", bg=theme["sidebar"]).pack(pady=(0, 20))
+        # Main Workspace Panel
+        self.main_content = tk.Frame(self, bg=theme["bg"])
+        self.main_content.pack(side="right", expand=True, fill="both")
 
-        pages = ["Dashboard", "File Analysis", "Password Vault", "AI Security Analyst", "Alerts", "Reports", "Settings"]
-        if self.current_user and self.current_user.get("role") == "admin":
-            pages.insert(1, "Admin Panel")
+        # Dynamic Nav Links
+        nav_options = [
+            ("Dashboard", self.render_overview_page),
+            ("Biometrics & IAM", self.render_biometrics_page),
+            ("AES Secure Vault", self.render_vault_page),
+            ("Network Telemetry", self.render_network_page),
+            ("Threat Intel Scan", self.render_threat_page),
+            ("System Scanner", self.render_scanner_page),
+            ("Password Tools", self.render_password_page),
+            ("AI Analyst", self.render_ai_page)
+        ]
 
-        for page in pages:
-            btn = tk.Button(
-                self.sidebar, text=page, anchor="w", padx=20, pady=8,
-                bg=theme["sidebar"], fg=theme["text"], bd=0, font=("Helvetica", 10, "bold"),
-                activebackground=theme["card"], activeforeground=theme["accent"],
-                command=lambda p=page: self.load_page(p), cursor="hand2"
-            )
-            btn.pack(fill="x")
+        if self.user_role == "admin":
+            nav_options.append(("Admin Panel", self.render_admin_panel))
 
-        tk.Button(self.sidebar, text="LOG OUT", bg="#ef4444", fg="white", bd=0, font=("Helvetica", 10, "bold"), pady=8, command=self.show_login_screen, cursor="hand2").pack(side="bottom", fill="x", pady=20)
+        for text, command in nav_options:
+            btn = tk.Button(self.sidebar, text=f"  {text}", anchor="w", font=("Helvetica", 10, "bold"), fg=theme["text"], bg=theme["card"], activebackground=theme["accent"], activeforeground="black", relief="flat", pady=8, command=command)
+            btn.pack(fill="x", padx=10, pady=2)
 
-        self.load_page("Dashboard")
+        # Logout & Theme Selector at Bottom
+        logout_btn = tk.Button(self.sidebar, text="  Logout Session", anchor="w", font=("Helvetica", 10), fg="#ef4444", bg=theme["card"], relief="flat", pady=8, command=self.render_login_screen)
+        logout_btn.pack(side="bottom", fill="x", padx=10, pady=15)
 
-    def load_page(self, name):
+        self.render_overview_page()
+
+    def clear_content(self):
         for widget in self.main_content.winfo_children():
             widget.destroy()
 
-        if name == "Dashboard":
-            self.render_dashboard()
-        elif name == "Admin Panel":
-            self.render_admin_panel()
-        elif name == "File Analysis":
-            self.render_file_analysis()
-        elif name == "Password Vault":
-            self.render_password_vault()
-        elif name == "AI Security Analyst":
-            self.render_ai_analyst()
-        elif name == "Alerts":
-            self.render_alerts()
-        elif name == "Reports":
-            self.render_reports()
-        elif name == "Settings":
-            self.render_settings()
-
-    # ================= FEATURE SCREENS =================
-    def render_dashboard(self):
+    # ==========================================
+    # PAGE 1: OVERVIEW DASHBOARD
+    # ==========================================
+    def render_overview_page(self):
+        self.clear_content()
         theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="System Threat & Security Dashboard", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        info = network_tools.get_host_info()
-        card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        card.pack(fill="x", padx=20, pady=5)
+        tk.Label(self.main_content, text="System Operations Overview", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
-        tk.Label(card, text="Protected Network Telemetry", font=("Helvetica", 12, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
-        tk.Label(card, text=f"Hostname: {info['hostname']}  |  Local IP: {info['local_ip']}  |  Route IP: {info['route_ip']}", fg=theme["text"], bg=theme["card"]).pack(anchor="w", pady=5)
+        stats_frame = tk.Frame(self.main_content, bg=theme["bg"])
+        stats_frame.pack(fill="x", padx=20, pady=10)
 
-        logs_card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        logs_card.pack(fill="both", expand=True, padx=20, pady=10)
+        cards = [
+            ("ENDPOINT STATUS", "PROTECTED / ACTIVE", "#10b981"),
+            ("CRYPTO VAULT", "AES-256 ENCRYPTED", theme["accent"]),
+            ("NETWORK GUARD", "REAL-TIME MONITORING", "#3b82f6")
+        ]
 
-        tk.Label(logs_card, text="Real-Time Malware Detection & Event Feed", font=("Helvetica", 12, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w", pady=(0, 5))
+        for title, val, color in cards:
+            c_frame = tk.Frame(stats_frame, bg=theme["card"], padx=15, pady=15, highlightthickness=1, highlightbackground=color)
+            c_frame.pack(side="left", expand=True, fill="both", padx=5)
+            tk.Label(c_frame, text=title, font=("Helvetica", 9, "bold"), fg="#94a3b8", bg=theme["card"]).pack(anchor="w")
+            tk.Label(c_frame, text=val, font=("Consolas", 12, "bold"), fg=color, bg=theme["card"]).pack(anchor="w", pady=(5, 0))
+
+        # Recent Logs Frame
+        tk.Label(self.main_content, text="Recent Audit Logs", font=("Helvetica", 14, "bold"), fg=theme["text"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=(20, 5))
         
-        logs = database.fetch_logs(limit=10)
-        for log in logs:
-            tk.Label(logs_card, text=f"[{log[1]}] [{log[2]}] {log[3]}", fg=theme["text"], bg=theme["card"], font=("Consolas", 9)).pack(anchor="w")
+        log_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 10), height=12, relief="flat", padx=10, pady=10)
+        log_box.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        logs = database.fetch_logs(limit=15)
+        for l in logs:
+            log_box.insert("end", f"[{l[1]}] [{l[2]}] {l[3]}\n")
+        log_box.config(state="disabled")
+
+    # ==========================================
+    # PAGE 2: BIOMETRICS & IAM
+    # ==========================================
+    def render_biometrics_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+
+        tk.Label(self.main_content, text="Biometric & Identity Management", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=20)
+        card.pack(fill="x", padx=20, pady=10)
+
+        tk.Label(card, text="FACIAL BIOMETRIC VERIFICATION", font=("Helvetica", 12, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
+        tk.Label(card, text="Verifies live camera stream against human face detection model.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 15))
+
+        def trigger_camera_auth():
+            messagebox.showinfo("Biometric Auth", "Opening webcam... Please look directly at the camera.")
+            match = face_auth.verify_face_biometric()
+            if match:
+                messagebox.showinfo("Access Granted", "Biometric verification successful! Facial match confirmed.")
+                logger.log_event(f"Biometric face verification PASSED for {self.current_user}", "INFO")
+            else:
+                messagebox.showerror("Access Denied", "Face verification failed or webcam timed out.")
+                logger.log_event(f"Biometric face verification FAILED for {self.current_user}", "WARN")
+
+        tk.Button(card, text="Start Face ID Scan", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=8, command=trigger_camera_auth).pack(anchor="w")
+
+    # ==========================================
+    # PAGE 3: AES SECURE VAULT & SHREDDER
+    # ==========================================
+    def render_vault_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+
+        tk.Label(self.main_content, text="AES-256 Vault & DoD File Shredder", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        # Encrypt File Box
+        enc_card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=15)
+        enc_card.pack(fill="x", padx=20, pady=10)
+
+        tk.Label(enc_card, text="SECURE FILE ENCRYPTION", font=("Helvetica", 12, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
+        
+        secret_ent = tk.Entry(enc_card, show="*", font=("Helvetica", 10), width=30)
+        secret_ent.pack(anchor="w", pady=5)
+        secret_ent.insert(0, "MasterSecretKey")
+
+        def select_and_encrypt():
+            filepath = filedialog.askopenfilename(title="Select Document/Photo to Encrypt")
+            secret = secret_ent.get().strip()
+            if filepath and secret:
+                if vault.encrypt_file(filepath, secret):
+                    messagebox.showinfo("Vault Success", f"Encrypted and stored in vault: {os.path.basename(filepath)}.enc")
+                    logger.log_event(f"Encrypted file '{os.path.basename(filepath)}'", "INFO")
+                else:
+                    messagebox.showerror("Vault Error", "Failed to encrypt file.")
+
+        tk.Button(enc_card, text="Select & Encrypt File", bg="#3b82f6", fg="white", font=("Helvetica", 10, "bold"), relief="flat", command=select_and_encrypt).pack(anchor="w", pady=5)
+
+        # Shredder Box
+        shred_card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=15)
+        shred_card.pack(fill="x", padx=20, pady=10)
+
+        tk.Label(shred_card, text="DoD 5220.22-M 3-PASS FILE SHREDDER", font=("Helvetica", 12, "bold"), fg="#ef4444", bg=theme["card"]).pack(anchor="w")
+        tk.Label(shred_card, text="Overwrites file with Zeros, Ones, and Cryptographic Random Bytes before deletion.", fg="#94a3b8", bg=theme["card"]).pack(anchor="w", pady=(0, 10))
+
+        def select_and_shred():
+            filepath = filedialog.askopenfilename(title="SELECT FILE TO PERMANENTLY DESTROY")
+            if filepath:
+                confirm = messagebox.askyesno("WARNING", f"Are you sure you want to permanently shred:\n{filepath}?")
+                if confirm:
+                    if vault.dod_shred_file(filepath):
+                        messagebox.showinfo("Shred Complete", "File permanently destroyed via DoD 3-pass wipe.")
+                        logger.log_event(f"Shredded file '{os.path.basename(filepath)}'", "WARN")
+                    else:
+                        messagebox.showerror("Shred Error", "Could not shred file.")
+
+        tk.Button(shred_card, text="Select File & Permanently Shred", bg="#ef4444", fg="white", font=("Helvetica", 10, "bold"), relief="flat", command=select_and_shred).pack(anchor="w")
+
+    # ==========================================
+    # PAGE 4: NETWORK TELEMETRY
+    # ==========================================
+    def render_network_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+
+        tk.Label(self.main_content, text="Active Network & Socket Telemetry", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        # Wi-Fi Profiles Section
+        wifi_profiles = network_monitor.audit_saved_wifi_profiles()
+        wifi_card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=10)
+        wifi_card.pack(fill="x", padx=20, pady=(0, 10))
+        
+        tk.Label(wifi_card, text=f"Saved Device Wi-Fi Profiles Found: {len(wifi_profiles)}", font=("Helvetica", 10, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
+        tk.Label(wifi_card, text=", ".join(wifi_profiles[:5]), font=("Consolas", 9), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
+
+        # Active Network Connections Table
+        net_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 9), height=15, relief="flat", padx=10, pady=10)
+        net_box.pack(fill="both", expand=True, padx=20, pady=10)
+
+        conns = network_monitor.get_active_network_connections()
+        net_box.insert("end", f"{'PID':<8} | {'PROCESS':<20} | {'LOCAL ADDRESS':<22} | {'REMOTE ADDRESS':<22}\n")
+        net_box.insert("end", "-" * 80 + "\n")
+
+        for c in conns:
+            net_box.insert("end", f"{c['pid']:<8} | {c['process'][:18]:<20} | {c['local']:<22} | {c['remote']:<22}\n")
+
+        net_box.config(state="disabled")
+
+    # ==========================================
+    # PAGE 5: THREAT INTEL SCANNER
+    # ==========================================
+    def render_threat_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+
+        tk.Label(self.main_content, text="Cloud Threat Intelligence (VirusTotal)", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=20)
+        card.pack(fill="x", padx=20, pady=10)
+
+        tk.Label(card, text="FILE SHA-256 REPUTATION LOOKUP", font=("Helvetica", 12, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
+        
+        res_lbl = tk.Label(card, text="Select a file to calculate its SHA-256 hash and verify against cloud threat feeds.", fg="#94a3b8", bg=theme["card"])
+        res_lbl.pack(anchor="w", pady=(5, 15))
+
+        def run_threat_scan():
+            filepath = filedialog.askopenfilename()
+            if filepath:
+                sha256_hash = threat_intel.get_file_sha256(filepath)
+                # Note: Replace None with your VirusTotal API key if available
+                vt_result = threat_intel.scan_hash_virustotal(sha256_hash, api_key=None)
+                
+                res_text = f"File: {os.path.basename(filepath)}\nSHA-256: {sha256_hash}\nCloud Status: {vt_result['status']}"
+                res_lbl.config(text=res_text, fg=theme["accent"])
+                logger.log_event(f"Scanned hash '{sha256_hash[:10]}...' - Status: {vt_result['status']}", "INFO")
+
+        tk.Button(card, text="Select File & Query Threat Feed", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=8, command=run_threat_scan).pack(anchor="w")
+
+    # ==========================================
+    # EXISTING UTILITY PAGES (SCANNER, PASS, AI, ADMIN)
+    # ==========================================
+    def render_scanner_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+        tk.Label(self.main_content, text="Local Endpoint Integrity Scanner", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+        
+        scan_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 10), height=15, relief="flat", padx=10, pady=10)
+        scan_box.pack(fill="both", expand=True, padx=20, pady=10)
+
+        def start_scan():
+            scan_box.delete("1.0", "end")
+            scan_box.insert("end", "Initiating System File Integrity Audit...\n\n")
+            results = scanner.run_full_system_scan()
+            for r in results:
+                scan_box.insert("end", f"[{r['type']}] File: {r['file']} | Status: {r['status']}\n")
+
+        tk.Button(self.main_content, text="Run Integrity Audit", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), command=start_scan).pack(padx=20, anchor="w")
+
+    def render_password_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+        tk.Label(self.main_content, text="Cryptographic Password Utilities", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        card = tk.Frame(self.main_content, bg=theme["card"], padx=20, pady=20)
+        card.pack(fill="x", padx=20, pady=10)
+
+        pass_lbl = tk.Label(card, text="Generated Password: ---", font=("Consolas", 12, "bold"), fg=theme["accent"], bg=theme["card"])
+        pass_lbl.pack(anchor="w", pady=(0, 10))
+
+        def gen_pass():
+            p = password_gen.generate_high_entropy_password(16)
+            pass_lbl.config(text=f"Generated Password: {p}")
+
+        tk.Button(card, text="Generate 16-Char Pass", bg="#3b82f6", fg="white", command=gen_pass).pack(anchor="w")
+
+    def render_ai_page(self):
+        self.clear_content()
+        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
+        tk.Label(self.main_content, text="AI Security Analyst Insights", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+
+        ai_box = tk.Text(self.main_content, bg=theme["card"], fg=theme["text"], font=("Consolas", 10), height=15, relief="flat", padx=10, pady=10)
+        ai_box.pack(fill="both", expand=True, padx=20, pady=10)
+
+        insights = ai_analyst.generate_security_assessment()
+        ai_box.insert("end", insights)
+        ai_box.config(state="disabled")
 
     def render_admin_panel(self):
+        self.clear_content()
         theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="Admin User Verification Panel", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+        tk.Label(self.main_content, text="Admin User Management & Audit Panel", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
 
+        # Metrics Card
+        stats = database.fetch_user_stats()
+        stats_frame = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
+        stats_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        tk.Label(stats_frame, text="USER REGISTRATION METRICS", font=("Helvetica", 11, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w", pady=(0, 5))
+        metrics_text = f"Total Registered: {stats['total']}  |  Approved: {stats['approved']}  |  Pending: {stats['pending']}  |  Rejected: {stats['rejected']}"
+        tk.Label(stats_frame, text=metrics_text, font=("Consolas", 11, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
+
+        # Pending Requests
+        tk.Label(self.main_content, text="Pending Access Requests", font=("Helvetica", 14, "bold"), fg=theme["text"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=(10, 5))
         pending_users = database.fetch_pending_users()
 
         if not pending_users:
-            tk.Label(self.main_content, text="No pending registration requests requiring authorization.", fg=theme["text"], bg=theme["bg"]).pack(anchor="w", padx=20)
-            return
-
-        for u in pending_users:
-            row = tk.Frame(self.main_content, bg=theme["card"], padx=10, pady=10)
-            row.pack(fill="x", padx=20, pady=5)
-
-            tk.Label(row, text=f"Agent: {u['username']}  |  Role: {u['role']}", fg=theme["text"], bg=theme["card"], font=("Helvetica", 11)).pack(side="left")
-
-            def approve(username=u['username']):
-                database.set_user_status(username, "approved")
-                logger.log_event(f"Admin approved account for '{username}'.", "INFO")
-                messagebox.showinfo("Success", f"Approved user {username}")
-                self.load_page("Admin Panel")
-
-            def reject(username=u['username']):
-                database.set_user_status(username, "rejected")
-                logger.log_event(f"Admin rejected account for '{username}'.", "WARN")
-                messagebox.showinfo("Rejected", f"Rejected user {username}")
-                self.load_page("Admin Panel")
-
-            tk.Button(row, text="Approve", bg="#10b981", fg="white", command=approve).pack(side="right", padx=5)
-            tk.Button(row, text="Reject", bg="#ef4444", fg="white", command=reject).pack(side="right")
-
-    def render_file_analysis(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="File Integrity & Malware Scanner", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
-
-        box = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        box.pack(fill="x", padx=20)
-
-        lbl_file = tk.Label(box, text="No file selected", fg=theme["text"], bg=theme["card"])
-        lbl_file.pack(anchor="w", pady=5)
-
-        lbl_res = tk.Label(box, text="", fg=theme["accent"], bg=theme["card"], font=("Consolas", 10))
-        lbl_res.pack(anchor="w", pady=5)
-
-        selected_path = {"path": None}
-
-        def choose_file():
-            path = filedialog.askopenfilename()
-            if path:
-                selected_path["path"] = path
-                lbl_file.config(text=f"File: {path}")
-
-        def scan():
-            if not selected_path["path"]:
-                messagebox.showwarning("Warning", "Select a file first.")
-                return
-            res = file_tools.scan_file(selected_path["path"])
-            threat_str = f"Threat: {res['threat']}" if res['threat'] else "Clean file (No match found)."
-            lbl_res.config(text=f"SHA256: {res['sha256']}\nSize: {res['size']} bytes\nStatus: {threat_str}")
-
-        def shred():
-            if not selected_path["path"]:
-                return
-            if messagebox.askyesno("Confirm", "Are you sure you want to shred this file permanently?"):
-                ok = file_tools.shred_file(selected_path["path"])
-                messagebox.showinfo("Result", "File shredded successfully." if ok else "Shredding failed.")
-                lbl_file.config(text="No file selected")
-
-        tk.Button(box, text="Select File", bg=theme["button"], fg="white", command=choose_file).pack(side="left", padx=5)
-        tk.Button(box, text="Scan File Signature", bg="#10b981", fg="white", command=scan).pack(side="left", padx=5)
-        tk.Button(box, text="Shred File", bg="#ef4444", fg="white", command=shred).pack(side="left", padx=5)
-
-    def render_password_vault(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="Password Vault & Generator", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
-
-        box = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        box.pack(fill="x", padx=20)
-
-        tk.Label(box, text="Generate & Test Cryptographic Password", font=("Helvetica", 12, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w")
-
-        entry_gen = tk.Entry(box, font=("Consolas", 12), width=35)
-        entry_gen.pack(anchor="w", pady=10)
-
-        lbl_score = tk.Label(box, text="Strength: -", fg=theme["text"], bg=theme["card"])
-        lbl_score.pack(anchor="w")
-
-        def generate():
-            pwd = password_tools.generate_password(16)
-            analysis = password_tools.analyze_password(pwd)
-            entry_gen.delete(0, tk.END)
-            entry_gen.insert(0, pwd)
-            lbl_score.config(text=f"Strength: {analysis['label']} ({analysis['entropy_bits']} bits entropy)")
-
-        def test_pwd():
-            pwd = entry_gen.get()
-            analysis = password_tools.analyze_password(pwd)
-            lbl_score.config(text=f"Strength: {analysis['label']} ({analysis['entropy_bits']} bits entropy)")
-
-        tk.Button(box, text="Generate Password", bg=theme["button"], fg="white", command=generate).pack(side="left", pady=10, padx=5)
-        tk.Button(box, text="Check Strength", bg="#10b981", fg="white", command=test_pwd).pack(side="left", pady=10)
-
-    def render_ai_analyst(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="AI Security Analyst", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
-
-        box = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        box.pack(fill="both", expand=True, padx=20, pady=5)
-
-        txt = tk.Text(box, bg=theme["bg"], fg=theme["text"], font=("Consolas", 10))
-        txt.pack(fill="both", expand=True)
-
-        txt.insert("end", "[AI Analyst] Initializing system rules assessment...\n")
-        
-        if honeytoken.sentinel.active:
-            txt.insert("end", "[+] Canary Honeytoken Sentinel: ACTIVE\n")
+            tk.Label(self.main_content, text="No pending registration requests.", fg="#94a3b8", bg=theme["bg"]).pack(anchor="w", padx=20, pady=(0, 10))
         else:
-            txt.insert("end", "[-] Canary Honeytoken Sentinel: INACTIVE (Deploying decoy file...)\n")
-            honeytoken.sentinel.deploy()
-            txt.insert("end", "[+] Decoy AWS credential honeypot deployed successfully.\n")
+            for u in pending_users:
+                row = tk.Frame(self.main_content, bg=theme["card"], padx=10, pady=10)
+                row.pack(fill="x", padx=20, pady=5)
 
-        txt.insert("end", "[+] PBKDF2 Password Iterations: 200,000 (Secure)\n")
-        txt.insert("end", "[+] System recommendation: Regularly audit pending registration queues.\n")
+                tk.Label(row, text=f"Agent: {u['username']}  |  Role: {u['role']}", fg=theme["text"], bg=theme["card"], font=("Helvetica", 11)).pack(side="left")
 
-    def render_alerts(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="Live Network & Connection Alerts", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
+                def approve(username=u['username']):
+                    database.set_user_status(username, "approved")
+                    logger.log_event(f"Admin approved account for '{username}'.", "INFO")
+                    messagebox.showinfo("Success", f"Approved user {username}")
+                    self.render_admin_panel()
 
-        card = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        card.pack(fill="both", expand=True, padx=20, pady=5)
+                def reject(username=u['username']):
+                    database.set_user_status(username, "rejected")
+                    logger.log_event(f"Admin rejected account for '{username}'.", "WARN")
+                    messagebox.showinfo("Rejected", f"Rejected user {username}")
+                    self.render_admin_panel()
 
-        conns, err = network_tools.get_connections(limit=15)
-        if err:
-            tk.Label(card, text=f"Network Error: {err}", fg="#ef4444", bg=theme["card"]).pack(anchor="w")
-        else:
-            tk.Label(card, text="Active Network Connections:", font=("Helvetica", 11, "bold"), fg=theme["accent"], bg=theme["card"]).pack(anchor="w")
-            for c in conns:
-                tk.Label(card, text=f"{c[0]}:{c[1]} --> {c[2]}:{c[3]} [{c[4]}]", fg=theme["text"], bg=theme["card"], font=("Consolas", 9)).pack(anchor="w")
-
-    def render_reports(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="Security Reports & Logs Export", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
-
-        box = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        box.pack(fill="x", padx=20)
-
-        logs = database.fetch_logs(limit=500)
-        tk.Label(box, text=f"Total Recorded Log Entries: {len(logs)}", fg=theme["text"], bg=theme["card"], font=("Helvetica", 11)).pack(anchor="w", pady=5)
-
-        def do_export():
-            path = exporter.export_logs_csv(logs)
-            messagebox.showinfo("Export Complete", f"CSV Log Report saved to:\n{path}")
-
-        tk.Button(box, text="Export CSV Report", bg=theme["button"], fg="white", command=do_export).pack(anchor="w", pady=10)
-
-    def render_settings(self):
-        theme = THEMES.get(self.current_theme, THEMES["Dark Cyber"])
-        tk.Label(self.main_content, text="Settings & Theme Options", font=("Helvetica", 18, "bold"), fg=theme["accent"], bg=theme["bg"]).pack(anchor="w", padx=20, pady=15)
-
-        box = tk.Frame(self.main_content, bg=theme["card"], padx=15, pady=15)
-        box.pack(fill="x", padx=20)
-
-        tk.Label(box, text="Select Theme", font=("Helvetica", 12, "bold"), fg=theme["text"], bg=theme["card"]).pack(anchor="w", pady=5)
-
-        selected_theme = tk.StringVar(value=self.current_theme)
-        dropdown = ttk.Combobox(box, textvariable=selected_theme, values=list(THEMES.keys()), state="readonly")
-        dropdown.pack(anchor="w", pady=5)
-
-        def save_theme():
-            new_theme = selected_theme.get()
-            self.current_theme = new_theme
-            database.update_user_theme(self.current_user["username"], new_theme)
-            self.show_dashboard_screen()
-            self.load_page("Settings")
-
-        tk.Button(box, text="Apply Theme", bg=theme["button"], fg="white", command=save_theme).pack(anchor="w", pady=10)
-
-    def clear_container(self):
-        for widget in self.container.winfo_children():
-            widget.destroy()
+                tk.Button(row, text="Approve", bg="#10b981", fg="white", command=approve).pack(side="right", padx=5)
+                tk.Button(row, text="Reject", bg="#ef4444", fg="white", command=reject).pack(side="right")
 
 if __name__ == "__main__":
     app = CyberShieldApp()
