@@ -4,10 +4,38 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
-# Core Config & Database Imports
-from config import THEMES, PATHS
+# Core Config Imports with Fallback Protection
+import config
+
+PATHS = getattr(config, "PATHS", {
+    "data": "data",
+    "db": "data/cybershield.db",
+    "bg_image": "assets/bg.jpg"
+})
+
+THEMES = getattr(config, "THEMES", {
+    "Dark Cyber": {
+        "bg": "#0f172a",
+        "card": "#1e293b",
+        "accent": "#38bdf8",
+        "text": "#f8fafc"
+    },
+    "Light Modern": {
+        "bg": "#f8fafc",
+        "card": "#ffffff",
+        "accent": "#0284c7",
+        "text": "#0f172a"
+    },
+    "Matrix Green": {
+        "bg": "#051105",
+        "card": "#0d260d",
+        "accent": "#22c55e",
+        "text": "#f0fdf4"
+    }
+})
+
+# Backend Security Modules
 from backend import auth, database, logger, scanner, password_gen, honeypot, ai_analyst
-# New Enterprise Security Modules
 from backend import vault, network_monitor, face_auth, threat_intel
 
 class CyberShieldApp(tk.Tk):
@@ -28,24 +56,8 @@ class CyberShieldApp(tk.Tk):
         # Window Layout Frames
         self.sidebar = None
         self.main_content = None
-        self.bg_label = None
 
         self.render_login_screen()
-
-    # ==========================================
-    # BACKGROUND IMAGE & THEME HELPERS
-    # ==========================================
-    def set_background_image(self, parent_frame):
-        bg_path = PATHS.get("bg_image", "")
-        if os.path.exists(bg_path):
-            try:
-                img = Image.open(bg_path)
-                img = img.resize((1100, 700), Image.LANCZOS)
-                self.bg_image_tk = ImageTk.PhotoImage(img)
-                bg_label = tk.Label(parent_frame, image=self.bg_image_tk)
-                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
-            except Exception as e:
-                logger.log_event(f"Failed to render background image: {e}", "WARN")
 
     # ==========================================
     # LOGIN & REGISTRATION WORKFLOW
@@ -145,7 +157,7 @@ class CyberShieldApp(tk.Tk):
             btn = tk.Button(self.sidebar, text=f"  {text}", anchor="w", font=("Helvetica", 10, "bold"), fg=theme["text"], bg=theme["card"], activebackground=theme["accent"], activeforeground="black", relief="flat", pady=8, command=command)
             btn.pack(fill="x", padx=10, pady=2)
 
-        # Logout & Theme Selector at Bottom
+        # Logout Session
         logout_btn = tk.Button(self.sidebar, text="  Logout Session", anchor="w", font=("Helvetica", 10), fg="#ef4444", bg=theme["card"], relief="flat", pady=8, command=self.render_login_screen)
         logout_btn.pack(side="bottom", fill="x", padx=10, pady=15)
 
@@ -319,7 +331,6 @@ class CyberShieldApp(tk.Tk):
             filepath = filedialog.askopenfilename()
             if filepath:
                 sha256_hash = threat_intel.get_file_sha256(filepath)
-                # Note: Replace None with your VirusTotal API key if available
                 vt_result = threat_intel.scan_hash_virustotal(sha256_hash, api_key=None)
                 
                 res_text = f"File: {os.path.basename(filepath)}\nSHA-256: {sha256_hash}\nCloud Status: {vt_result['status']}"
@@ -329,7 +340,7 @@ class CyberShieldApp(tk.Tk):
         tk.Button(card, text="Select File & Query Threat Feed", bg=theme["accent"], fg="black", font=("Helvetica", 10, "bold"), relief="flat", padx=15, pady=8, command=run_threat_scan).pack(anchor="w")
 
     # ==========================================
-    # EXISTING UTILITY PAGES (SCANNER, PASS, AI, ADMIN)
+    # UTILITY PAGES (SCANNER, PASS, AI, ADMIN)
     # ==========================================
     def render_scanner_page(self):
         self.clear_content()
