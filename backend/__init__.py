@@ -1,2 +1,1 @@
-# Blank package marker file
-
+# Blank package file
