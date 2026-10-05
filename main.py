@@ -1,10 +1,20 @@
-import os
 import sys
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+import os
 
-# Dynamic Backend Imports
-from backend import auth, database, logger, scanner, password_gen, ai_analyst, vault, network_monitor, face_auth, threat_intel
+# Explicit backend imports to avoid circular import errors
+import backend.auth as auth
+import backend.database as database
+import backend.logger as logger
+import backend.scanner as scanner
+import backend.password_gen as password_gen
+import backend.ai_analyst as ai_analyst
+import backend.vault as vault
+import backend.network_monitor as network_monitor
+import backend.face_auth as face_auth
+import backend.threat_intel as threat_intel
+
+# Rest of your main.py code below...
+
 
 THEMES = {
     "Dark Cyber": {"bg": "#0f172a", "card": "#1e293b", "accent": "#38bdf8", "text": "#f8fafc"}
