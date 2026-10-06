@@ -1,61 +1,84 @@
-import cv2
+import hashlib
+import sqlite3
 import os
 
-def verify_face_biometric():
-    """ Opens live camera stream for face detection """
-    try:
-        # Load pre-trained Haar cascade for face detection
-        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        face_cascade = cv2.CascadeClassifier(cascade_path)
+DB_PATH = os.path.join("data", "cybershield.db") if os.path.exists("data") else "cybershield.db"
 
-        # Open default webcam (0)
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if os.name == 'nt' else cv2.VideoCapture(0)
+def _hash_password(password: str) -> str:
+    """ Computes SHA-256 hash of password """
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+def init_auth_db():
+    """ Ensures users table exists with required fields """
+    if not os.path.exists("data") and "data" in DB_PATH:
+        os.makedirs("data", exist_ok=True)
         
-        if not cap.isOpened():
-            print("Error: Could not open camera.")
-            return False
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT,
+            password TEXT NOT NULL,
+            company TEXT,
+            role TEXT DEFAULT 'user',
+            status TEXT DEFAULT 'pending'
+        )
+    ''')
+    
+    # Ensure default admin account exists
+    cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+    if not cursor.fetchone():
+        admin_pwd_hash = _hash_password("admin")
+        cursor.execute(
+            "INSERT INTO users (username, email, password, company, role, status) VALUES (?, ?, ?, ?, ?, ?)",
+            ("admin", "admin@cybershield.com", admin_pwd_hash, "Admin Corp", "admin", "approved")
+        )
+    conn.commit()
+    conn.close()
 
-        detected = False
+def authenticate_user(username, password):
+    """ Authenticates user and checks approval status """
+    init_auth_db()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    pwd_hash = _hash_password(password)
+    cursor.execute("SELECT role, status FROM users WHERE username = ? AND password = ?", (username, pwd_hash))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if not user:
+        return "FAILED", None, "Invalid username or password."
+    
+    role, status = user[0], user[1]
+    
+    if status == "pending":
+        return "PENDING", None, "Account is pending Admin approval."
+    elif status == "rejected":
+        return "REJECTED", None, "Account request was rejected by Admin."
+    
+    return "SUCCESS", role, "Login successful."
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            # Convert frame to grayscale for detection
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(
-                gray, 
-                scaleFactor=1.1, 
-                minNeighbors=5, 
-                minSize=(100, 100)
-            )
-
-            # Draw green box around detected face
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(frame, "Face Detected - Press 'Q' or Wait", (x, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-            if len(faces) > 0:
-                detected = True
-
-            # Display live camera window
-            cv2.imshow("CyberShield - Biometric Face Scan (Press Q to exit)", frame)
-
-            # Break loop if 'q' is pressed or after detecting face
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            
-            # If face detected, show for 1 second then complete verification
-            if detected:
-                cv2.waitKey(1000)
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()
-        return detected
-
+def register_user(username, email, password, company=""):
+    """ Registers a new pending user request """
+    init_auth_db()
+    if not username or not password or not email:
+        return False, "Username, email, and password are required."
+        
+    pwd_hash = _hash_password(password)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (username, email, password, company, role, status) VALUES (?, ?, ?, ?, ?, ?)",
+            (username, email, pwd_hash, company, "user", "pending")
+        )
+        conn.commit()
+        conn.close()
+        return True, "Registration request submitted! Awaiting admin approval."
+    except sqlite3.IntegrityError:
+        return False, "Username already exists."
     except Exception as e:
-        print(f"Biometric Verification Error: {e}")
-        return False
+        return False, f"Registration failed: {str(e)}"
